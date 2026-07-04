@@ -59,13 +59,13 @@ export default function Signup() {
         <div>
           <label className="cp-label">Your name</label>
           <div className="relative">
-            <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+            <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="cp-input pl-9"
+              className="cp-input pl-11"
               placeholder="e.g. Raj"
               data-testid="signup-name"
               autoComplete="name"
@@ -75,13 +75,13 @@ export default function Signup() {
         <div>
           <label className="cp-label">Work email</label>
           <div className="relative">
-            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="cp-input pl-9"
+              className="cp-input pl-11"
               placeholder="you@company.com"
               data-testid="signup-email"
               autoComplete="email"
@@ -92,15 +92,15 @@ export default function Signup() {
           <div>
             <label className="cp-label">Password</label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
               <input
                 type="password"
                 required
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="cp-input pl-9"
-                placeholder="At least 6 chars"
+                className="cp-input pl-11"
+                placeholder="6+ chars"
                 data-testid="signup-password"
                 autoComplete="new-password"
               />
@@ -109,14 +109,14 @@ export default function Signup() {
           <div>
             <label className="cp-label">Confirm</label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
               <input
                 type="password"
                 required
                 minLength={6}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="cp-input pl-9"
+                className="cp-input pl-11"
                 placeholder="Repeat"
                 data-testid="signup-confirm"
                 autoComplete="new-password"

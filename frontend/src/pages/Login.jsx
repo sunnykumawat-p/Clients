@@ -49,13 +49,13 @@ export default function Login() {
         <div>
           <label className="cp-label">Email</label>
           <div className="relative">
-            <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+            <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="cp-input pl-9"
+              className="cp-input pl-11"
               placeholder="you@company.com"
               data-testid="login-email"
               autoComplete="email"
@@ -70,13 +70,13 @@ export default function Login() {
             </Link>
           </div>
           <div className="relative">
-            <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+            <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
             <input
               type="password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="cp-input pl-9"
+              className="cp-input pl-11"
               placeholder="••••••••"
               data-testid="login-password"
               autoComplete="current-password"

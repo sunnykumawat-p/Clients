@@ -59,7 +59,7 @@ export default function Layout() {
           </div>
           <div className="text-center">
             <div className="font-signature text-[color:var(--cp-accent)] text-base">
-              Made by Raj with Love ❤️ using Emergent
+              Made by Raj with Love❤️ using Emergent
             </div>
           </div>
         </div>

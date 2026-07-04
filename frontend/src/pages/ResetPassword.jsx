@@ -56,13 +56,13 @@ export default function ResetPassword() {
           <div>
             <label className="cp-label">Reset token</label>
             <div className="relative">
-              <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+            <KeyRound size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
               <input
                 type="text"
                 required
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                className="cp-input pl-9 font-mono text-[12px]"
+                className="cp-input pl-11 font-mono text-[12px]"
                 data-testid="reset-token"
                 placeholder="Paste token from reset link"
               />
@@ -71,15 +71,15 @@ export default function ResetPassword() {
           <div>
             <label className="cp-label">New password</label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
               <input
                 type="password"
                 required
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="cp-input pl-9"
-                placeholder="At least 6 chars"
+                className="cp-input pl-11"
+                placeholder="6+ chars"
                 data-testid="reset-password"
                 autoComplete="new-password"
               />
@@ -88,14 +88,14 @@ export default function ResetPassword() {
           <div>
             <label className="cp-label">Confirm new password</label>
             <div className="relative">
-              <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+              <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
               <input
                 type="password"
                 required
                 minLength={6}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                className="cp-input pl-9"
+                className="cp-input pl-11"
                 placeholder="Repeat"
                 data-testid="reset-confirm"
                 autoComplete="new-password"

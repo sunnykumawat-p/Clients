@@ -134,18 +134,20 @@ h5 {
     background: var(--cp-subtle);
 }
 
-.cp-input {
-    width: 100%;
-    background: #fff;
-    border: 1px solid var(--cp-border);
-    border-radius: 0.75rem;
-    padding: 0.75rem 1rem;
-    min-height: 44px;
-    color: var(--cp-text);
-    outline: none;
-    transition: border-color 140ms ease, box-shadow 140ms ease;
-    font-family: inherit;
-    font-size: 15px;
+@layer components {
+    .cp-input {
+        width: 100%;
+        background: #fff;
+        border: 1px solid var(--cp-border);
+        border-radius: 0.75rem;
+        padding: 0.75rem 1rem;
+        min-height: 44px;
+        color: var(--cp-text);
+        outline: none;
+        transition: border-color 140ms ease, box-shadow 140ms ease;
+        font-family: inherit;
+        font-size: 15px;
+    }
 }
 .cp-input:focus {
     border-color: var(--cp-accent);

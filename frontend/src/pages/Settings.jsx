@@ -150,12 +150,6 @@ export default function Settings() {
           and we&apos;ll get back within a working day.
         </div>
       </div>
-
-      <div className="text-center py-4">
-        <div className="font-signature text-[color:var(--cp-accent)] text-xl" data-testid="settings-signature">
-          Made by Raj with Love ❤️ using Emergent
-        </div>
-      </div>
     </div>
   );
 }

@@ -49,13 +49,13 @@ export default function ForgotPassword() {
           <div>
             <label className="cp-label">Your email</label>
             <div className="relative">
-              <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)]" />
+              <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[color:var(--cp-text-3)] pointer-events-none" />
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="cp-input pl-9"
+                className="cp-input pl-11"
                 placeholder="you@company.com"
                 data-testid="forgot-email"
                 autoComplete="email"

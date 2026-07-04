@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "@/lib/api";
-import { formatMoney } from "@/lib/cp";
+import { formatMoney, stageClass } from "@/lib/cp";
 import StageBadge from "@/components/StageBadge";
 import WhatsAppDraft from "@/components/WhatsAppDraft";
 import {
@@ -12,6 +12,12 @@ import {
   MessageCircle,
   ArrowRight,
   Inbox,
+  TrendingUp,
+  Users,
+  Coins,
+  Activity,
+  Sparkle,
+  CalendarDays,
 } from "lucide-react";
 
 const CardSection = ({ title, count, icon: Icon, tint, children }) => (
@@ -95,18 +101,91 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stat strip */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8 cp-stagger">
-        <StatCard label="Active clients" value={s.total_active} testId="stat-active" />
-        <StatCard label="Pipeline value" value={formatMoney(s.pipeline_value)} testId="stat-pipeline" />
-        <StatCard label="Open leads" value={s.total_leads} testId="stat-leads" />
+      {/* Primary KPI strip — attention-critical */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 cp-stagger">
+        <StatCard
+          label="Active clients"
+          value={s.total_active}
+          sub={`${s.total_clients} total in workspace`}
+          icon={Users}
+          testId="stat-active"
+        />
+        <StatCard
+          label="Pipeline value"
+          value={formatMoney(s.pipeline_value)}
+          sub={`Avg deal ${formatMoney(s.avg_deal_size)}`}
+          icon={TrendingUp}
+          testId="stat-pipeline"
+        />
+        <StatCard
+          label="Open leads"
+          value={s.total_leads}
+          sub={`${s.new_leads_week} new this week`}
+          icon={Sparkle}
+          testId="stat-leads"
+        />
         <StatCard
           label="Attention items"
           value={s.attention_count}
+          sub={s.attention_count === 0 ? "You're all caught up" : "Tap a card below"}
+          icon={AlertCircle}
           highlight={s.attention_count > 0}
           testId="stat-attention"
         />
       </div>
+
+      {/* Secondary KPI strip — money + momentum */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8 cp-stagger">
+        <StatCard
+          label="Revenue this month"
+          value={formatMoney(s.revenue_this_month)}
+          sub={`${formatMoney(s.revenue_all_time)} all-time`}
+          icon={Coins}
+          tint="var(--cp-success)"
+          testId="stat-rev-month"
+        />
+        <StatCard
+          label="Outstanding dues"
+          value={formatMoney(s.total_outstanding)}
+          sub={s.total_outstanding > 0 ? "Across active clients" : "Nothing pending"}
+          icon={Wallet}
+          tint={s.total_outstanding > 0 ? "var(--cp-accent)" : undefined}
+          testId="stat-outstanding"
+        />
+        <StatCard
+          label="Won this month"
+          value={s.signed_this_month}
+          sub="Signed conversions"
+          icon={CheckCircle2}
+          tint="var(--cp-success)"
+          testId="stat-won"
+        />
+        <StatCard
+          label="Contacted this week"
+          value={`${s.contacted_this_week}/${s.total_clients}`}
+          sub={`${s.contacted_today} in the last 24h`}
+          icon={Activity}
+          testId="stat-contacted"
+        />
+      </div>
+
+      {/* Pipeline breakdown */}
+      {data.pipeline_by_stage && data.pipeline_by_stage.length > 0 && (
+        <div className="cp-card p-5 md:p-6 mb-8" data-testid="pipeline-breakdown">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <div className="text-[15px] font-semibold">Pipeline at a glance</div>
+              <div className="text-[12px] text-[color:var(--cp-text-3)] mt-0.5">
+                How your clients are distributed across every stage — click any bar to jump to the list.
+              </div>
+            </div>
+            <Link to="/clients" className="cp-btn-ghost text-[13px]" data-testid="link-all-clients">
+              View all clients <ArrowRight size={14} />
+            </Link>
+          </div>
+          <PipelineBars data={data.pipeline_by_stage} />
+        </div>
+      )}
 
       {nothingToDo && (
         <div className="cp-card p-10 text-center" data-testid="attention-empty">
@@ -246,17 +325,87 @@ export default function Dashboard() {
   );
 }
 
-const StatCard = ({ label, value, highlight, testId }) => (
+const StatCard = ({ label, value, sub, icon: Icon, highlight, tint, testId }) => (
   <div
-    className={`cp-card p-4 md:p-5 ${highlight ? "ring-1 ring-[color:var(--cp-accent)]/30" : ""}`}
+    className={`cp-card p-4 md:p-5 relative overflow-hidden ${highlight ? "ring-1 ring-[color:var(--cp-accent)]/30" : ""}`}
     data-testid={testId}
   >
-    <div className="text-[11px] uppercase tracking-widest text-[color:var(--cp-text-3)]">{label}</div>
-    <div className={`mt-2 text-2xl md:text-3xl font-semibold tracking-tight ${highlight ? "text-[color:var(--cp-accent)]" : ""}`}>
+    <div className="flex items-start justify-between gap-2">
+      <div className="text-[11px] uppercase tracking-widest text-[color:var(--cp-text-3)]">{label}</div>
+      {Icon && (
+        <div
+          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+          style={{
+            background: tint ? `${tint}15` : "var(--cp-subtle)",
+            color: tint || "var(--cp-text-2)",
+          }}
+        >
+          <Icon size={14} strokeWidth={2.1} />
+        </div>
+      )}
+    </div>
+    <div
+      className={`mt-2 text-2xl md:text-3xl font-semibold tracking-tight ${highlight ? "text-[color:var(--cp-accent)]" : ""}`}
+      style={!highlight && tint ? { color: tint } : {}}
+    >
       {value}
     </div>
+    {sub && (
+      <div className="mt-1 text-[12px] text-[color:var(--cp-text-3)]">{sub}</div>
+    )}
   </div>
 );
+
+const PipelineBars = ({ data }) => {
+  const total = Math.max(1, data.reduce((a, b) => a + b.count, 0));
+  const maxCount = Math.max(1, ...data.map((d) => d.count));
+  return (
+    <div className="space-y-2.5" data-testid="pipeline-bars">
+      {data.map((row) => {
+        const pct = Math.round((row.count / total) * 100);
+        const barPct = Math.max(4, (row.count / maxCount) * 100);
+        return (
+          <Link
+            key={row.stage}
+            to={`/clients?stage=${encodeURIComponent(row.stage)}`}
+            className="flex items-center gap-3 group"
+            data-testid={`pipeline-row-${row.stage}`}
+          >
+            <div className="w-28 md:w-32 shrink-0">
+              <span className={`cp-stage-pill ${stageClass(row.stage)}`}>{row.stage}</span>
+            </div>
+            <div className="flex-1 relative h-8 bg-[color:var(--cp-subtle)] rounded-lg overflow-hidden">
+              <div
+                className="absolute inset-y-0 left-0 rounded-lg transition-all group-hover:brightness-95"
+                style={{
+                  width: `${barPct}%`,
+                  background: STAGE_BAR_COLOR[row.stage] || "var(--cp-accent)",
+                  opacity: row.count === 0 ? 0.15 : 1,
+                }}
+              />
+              <div className="absolute inset-0 flex items-center px-3 text-[12px] font-medium">
+                <span className="text-white mix-blend-difference">{row.count} {row.count === 1 ? "client" : "clients"}</span>
+                <span className="ml-auto text-[color:var(--cp-text-2)] text-[11px]">
+                  {formatMoney(row.value)} · {pct}%
+                </span>
+              </div>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+};
+
+const STAGE_BAR_COLOR = {
+  Lead: "#4A6E82",
+  Pitched: "#94682F",
+  Negotiating: "#D48C45",
+  Signed: "#4A7256",
+  "In Progress": "#C05746",
+  Delivered: "#8A6046",
+  Past: "#B5B0A6",
+};
 
 const ActionButtons = ({ item, onWa }) => (
   <div className="flex items-center gap-1.5 shrink-0">

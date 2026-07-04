@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import api from "@/lib/api";
-import { STAGES, SOURCES, formatMoney, daysAgo } from "@/lib/cp";
+import { STAGES, SOURCES, formatMoney } from "@/lib/cp";
 import StageBadge from "@/components/StageBadge";
 import { Plus, Search, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState("");
-  const [stage, setStage] = useState("");
+  const [stage, setStage] = useState(searchParams.get("stage") || "");
   const [showAdd, setShowAdd] = useState(false);
 
   const load = () =>
@@ -17,6 +18,12 @@ export default function Clients() {
 
   useEffect(() => {
     load();
+    if (stage) {
+      setSearchParams({ stage }, { replace: true });
+    } else if (searchParams.get("stage")) {
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, stage]);
 
   return (

@@ -34,7 +34,7 @@ export default function AuthShell({ eyebrow, title, subtitle, children, footer }
         </div>
 
         <div className="font-signature text-white/95 text-lg" data-testid="auth-signature">
-          Made by Raj with Love ❤️ using Emergent
+          Made by Raj with Love❤️ using Emergent
         </div>
       </div>
 

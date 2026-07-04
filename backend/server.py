@@ -643,6 +643,77 @@ async def attention(user=Depends(get_current_user)):
     total_active = sum(1 for c in clients if c.get("stage") in OPEN_STAGES)
     pipeline_value = sum(float(c.get("quoted_value", 0)) for c in clients if c.get("stage") in OPEN_STAGES)
     total_leads = sum(1 for c in clients if c.get("stage") == "Lead")
+    total_clients = len(clients)
+
+    # This-month + this-week metrics
+    month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    week_ago = today - timedelta(days=7)
+
+    revenue_this_month = 0.0
+    revenue_all_time = 0.0
+    async for p in db.payments.find({}, {"_id": 0}):
+        try:
+            when = datetime.fromisoformat((p.get("received_at") or p.get("created_at")).replace("Z", "+00:00"))
+        except Exception:
+            continue
+        amt = float(p.get("amount", 0))
+        revenue_all_time += amt
+        if when >= month_start:
+            revenue_this_month += amt
+
+    # Total outstanding across open clients (money owed to owner)
+    total_outstanding = 0.0
+    for c in clients:
+        if c.get("stage") in OPEN_STAGES:
+            money = await client_money(c["id"], float(c.get("quoted_value", 0)))
+            total_outstanding += money["outstanding"]
+
+    # New leads in last 7 days
+    new_leads_week = 0
+    for c in clients:
+        try:
+            created = datetime.fromisoformat(c["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if created >= week_ago:
+            new_leads_week += 1
+
+    # Signed / won this month (from interactions with stage_change → Signed)
+    signed_this_month = 0
+    async for i in db.interactions.find({"type": "stage_change", "meta.to": "Signed"}, {"_id": 0}):
+        try:
+            when = datetime.fromisoformat(i["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if when >= month_start:
+            signed_this_month += 1
+
+    # Pipeline breakdown by stage (all stages)
+    stage_settings_list = settings.get("stages", STAGES_DEFAULT)
+    pipeline_by_stage = []
+    for stage_name in stage_settings_list:
+        count = sum(1 for c in clients if c.get("stage") == stage_name)
+        value = sum(float(c.get("quoted_value", 0)) for c in clients if c.get("stage") == stage_name)
+        pipeline_by_stage.append({"stage": stage_name, "count": count, "value": value})
+
+    # Average deal size across signed+ clients
+    won_values = [float(c.get("quoted_value", 0)) for c in clients if c.get("stage") in {"Signed", "In Progress", "Delivered"} and float(c.get("quoted_value", 0)) > 0]
+    avg_deal_size = round(sum(won_values) / len(won_values), 0) if won_values else 0
+
+    # Contact freshness — how many clients contacted in last 24h / 7d
+    contacted_today = 0
+    contacted_this_week = 0
+    for c in clients:
+        lc = c.get("last_contact_at") or c.get("created_at")
+        try:
+            last = datetime.fromisoformat(lc.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        delta = today - last
+        if delta <= timedelta(hours=24):
+            contacted_today += 1
+        if delta <= timedelta(days=7):
+            contacted_this_week += 1
 
     return {
         "overdue_followups": overdue_followups,
@@ -653,8 +724,18 @@ async def attention(user=Depends(get_current_user)):
             "total_active": total_active,
             "pipeline_value": pipeline_value,
             "total_leads": total_leads,
+            "total_clients": total_clients,
             "attention_count": len(overdue_followups) + len(going_quiet) + len(overdue_payments) + len(tasks_due),
+            "revenue_this_month": revenue_this_month,
+            "revenue_all_time": revenue_all_time,
+            "total_outstanding": total_outstanding,
+            "new_leads_week": new_leads_week,
+            "signed_this_month": signed_this_month,
+            "avg_deal_size": avg_deal_size,
+            "contacted_today": contacted_today,
+            "contacted_this_week": contacted_this_week,
         },
+        "pipeline_by_stage": pipeline_by_stage,
         "settings": {"follow_up_lead_days": follow_up_days, "quiet_active_days": quiet_days},
     }
 
