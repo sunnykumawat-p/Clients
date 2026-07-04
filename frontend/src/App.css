@@ -1,34 +1,52 @@
-.App-logo {
-    height: 40vmin;
-    pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-    .App-logo {
-        animation: App-logo-spin infinite 20s linear;
-    }
-}
-
-.App-header {
-    background-color: #0f0f10;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: calc(10px + 2vmin);
-    color: white;
-}
-
-.App-link {
-    color: #61dafb;
-}
-
-@keyframes App-logo-spin {
+/* App-level CSS reserved for animations */
+@keyframes cp-fade-in {
     from {
-        transform: rotate(0deg);
+        opacity: 0;
+        transform: translateY(4px);
     }
     to {
-        transform: rotate(360deg);
+        opacity: 1;
+        transform: none;
     }
+}
+
+.cp-fade-in {
+    animation: cp-fade-in 260ms ease-out both;
+}
+
+@keyframes cp-slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+.cp-slide-up {
+    animation: cp-slide-up 300ms ease-out both;
+}
+
+.cp-stagger > * {
+    animation: cp-fade-in 280ms ease-out both;
+}
+.cp-stagger > *:nth-child(1) {
+    animation-delay: 0ms;
+}
+.cp-stagger > *:nth-child(2) {
+    animation-delay: 60ms;
+}
+.cp-stagger > *:nth-child(3) {
+    animation-delay: 120ms;
+}
+.cp-stagger > *:nth-child(4) {
+    animation-delay: 180ms;
+}
+.cp-stagger > *:nth-child(5) {
+    animation-delay: 240ms;
+}
+.cp-stagger > *:nth-child(6) {
+    animation-delay: 300ms;
 }

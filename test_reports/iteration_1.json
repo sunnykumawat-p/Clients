@@ -1,0 +1,50 @@
+{
+  "summary": "First full test pass for ClientPulse MVP. Backend: 20/20 pytest cases PASSED across auth, clients CRUD, stage change, interactions/timeline, tasks (create+complete), payments, templates CRUD, dashboard/attention, analytics summary, and settings persistence. Frontend: end-to-end Playwright flows PASSED for login (valid+invalid), Needs Attention Today (KPIs + Sunshine Family Clinic in overdue_followups + Tuku's ZAARRAA in going_quiet), WhatsApp Draft modal (template auto-pick, EN/HI language tabs with correct Hindi content, {name} substitution, wa.me deep-link built with correct phone, message logged as interaction on send), clients list (19 rows post seed+test data, search + stage filter), Add Client modal, client profile (Tuku's ZAARRAA — header, stage badge, money strip 45k/23k/22k after test payment, quick-action bar, timeline with seeded 'Design mockups' milestone), ALL THREE GOLDEN RULES verified end-to-end (task complete triggers milestone_update WA draft; log payment triggers payment_received WA draft & outstanding decreases; stage change triggers matching template WA draft), templates page (7 categories x 2 languages, EN/HI tab switch, create+reload persistence), analytics (6 KPIs + 4 charts with correct data-testids), settings persistence (follow_up_lead_days & quiet_active_days survive reload), branding (footer signature 'Made by Raj with Love using Emergent' + support email 'Sunnykumawat321@gmail.com' visible on login/settings/desktop footer), logout clears cp_token and redirects, protected /clients redirects to /login when unauthenticated.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PUT /api/clients/{id}", "issue": "Requires FULL ClientIn body (name required); does not support partial updates. Frontend must always send the full client object on edit, which is what it does — but this is a fragile API contract."},
+      {"endpoint": "PUT /api/templates/{tid}", "issue": "Same — requires full TemplateIn body (name/category/language/body all required). Not a partial patch endpoint."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "WhatsApp draft — Open in WhatsApp", "issue": "Uses window.open(waUrl) instead of a real <a href=\"https://wa.me/...\"> anchor. The wa.me URL is constructed correctly (verified: https://wa.me/919876500002?text=...) and works, but if strict spec requires an anchor with wa.me href, this is a deviation. Functionally equivalent for users.", "affected_selectors": ["[data-testid=\"wa-modal-send\"]"]}
+    ],
+    "design_issues": [
+      {"screen": "Templates modal", "issues": ["React hydration warning in console: '<span> cannot be a child of <option>' — caused by dev-only Visual Editor injection into <option> children; not a real render bug and does not affect production. Safe to ignore."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Update review-request documentation — the templates 'add' button testid is btn-new-template (not btn-add-template as listed in files_of_reference). Code and docs disagree; code is source of truth.",
+    "OPTIONAL: If strict spec compliance is required, change 'Open in WhatsApp' to render an <a href={waLink} target=\"_blank\"> instead of button+window.open so href starts with https://wa.me/ (testable via anchor href).",
+    "OPTIONAL: Make PUT /clients/{id} and PUT /templates/{id} accept partial payloads (Optional[str] fields) for a friendlier API contract."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~873 lines in a single file — consider splitting into routers (auth, clients, tasks, payments, templates, dashboard, analytics, settings) for maintainability.",
+    "JWT_EXPIRE_HOURS = 24*30 (30 days) is long-lived for a JWT. Fine for single-owner app but note in security posture.",
+    "attention.stats key names differ from what a natural reader might expect (total_active/total_leads vs active_clients/open_leads). Frontend consumes correct keys — but consistent naming with analytics.totals (which uses active_clients) would reduce cognitive load.",
+    "WhatsAppDraft.jsx renders language button with fixed text 'हिन्दी' and 'English' — hard-coded strings are fine for a single-locale app but a shared enum would be safer.",
+    "Deleting a template does not use a confirmation dialog on the frontend (delete is destructive). Consider a confirm() or modal to prevent accidental deletion (verified: the icon button deletes immediately).",
+    "No pagination on /api/clients — fine for boutique CRM (<100 clients) but should add server-side pagination if scaled."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (created)",
+    "/app/test_reports/pytest/pytest_results.xml (generated)"
+  ],
+  "success_rate": {
+    "backend": "100% (20/20 pytest)",
+    "frontend": "100% (all reviewed flows pass — login, dashboard, WA modal, clients CRUD, all 3 Golden Rules, templates CRUD+persistence, analytics, settings persistence, branding, logout, protected routes)"
+  },
+  "test_credentials": "owner@clientpulse.app / pulse2026 (from /app/memory/test_credentials.md — verified working).",
+  "seed_data_creation": "Backend startup seed already runs. During testing 5 TEST_* clients + 1 TEST_TPL_PLAYWRIGHT template + 1 TEST_PLAYWRIGHT_CLIENT were created; all were deleted via cleanup curl at end of run. Tuku's stage was temporarily flipped to Delivered by GOLDEN RULE #3 and RESTORED back to 'In Progress' via /api/clients/{id}/stage. One extra ₹5000 UPI payment on Tuku from GOLDEN RULE #2 was left intact (payments delete endpoint not exposed) — this bumps Tuku's paid_amount from ₹18,000 to ₹23,000 and outstanding from ₹27,000 to ₹22,000. To fully reset seed, drop mongo db 'clientpulse_db' and restart backend.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All critical MVP flows verified. Pytest suite at /app/backend/tests/backend_test.py (run with `pytest /app/backend/tests/backend_test.py -n 0 --junitxml=/app/test_reports/pytest/pytest_results.xml` — the addopts in /app/backend/pytest.ini use -n 2 --dist loadscope; use -n 0 for serial to avoid a settings-parallel race with dashboard/attention). Data-testid naming: template add button is `btn-new-template` (not `btn-add-template`). Templates lang tabs are `tab-lang-en`/`tab-lang-hi` (in WA modal they are `wa-lang-en`/`wa-lang-hi`). Analytics KPI testids are kpi-active, kpi-pipeline, kpi-rev-month, kpi-rev-all, kpi-total, kpi-avg-lead; chart testids are chart-stages, chart-sources, chart-conv-source, chart-conv-lang.",
+  "rca of the issue": "No blocking issues discovered. Two API-contract observations noted (PUT endpoints require full body) but they are not user-visible bugs because the frontend always sends full DTOs. WhatsApp send uses window.open+wa.me URL — verified via monkey-patch capture: https://wa.me/919876500002?text=Hi%20Sunshine%20Family%20Clinic%2C..."
+}
