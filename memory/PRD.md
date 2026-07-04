@@ -31,11 +31,13 @@ Dashboard rows have one-tap "Draft WhatsApp" for the matching category.
 - Support email `Sunnykumawat321@gmail.com` on Login, Settings, and desktop footer.
 
 ## What's Implemented (2026-02-04)
-- ✅ Full backend: auth, CRUD for clients / tasks / payments / templates / settings, dashboard, analytics.
+- ✅ Full backend: auth (login + **register + forgot-password + reset-password**), CRUD for clients / tasks / payments / templates / settings, dashboard, analytics.
+- ✅ Signup, Forgot Password, Reset Password pages — new users can create their own workspace; password reset via in-app token (email out of scope).
 - ✅ Seed: owner user, 14 templates (7 × en/hi), 15 realistic clients including Tuku's ZAARRAA (In Progress) and Sunshine Family Clinic (4-day-old Lead).
-- ✅ Frontend: Login, Dashboard (Needs Attention Today), Clients list, Client Profile (timeline / tasks / payments tabs), Templates, Analytics, Settings.
+- ✅ Frontend: Login, Signup, Forgot/Reset, Dashboard (Needs Attention Today), Clients list, Client Profile (timeline / tasks / payments tabs), Templates, Analytics, Settings.
 - ✅ WhatsApp draft modal with language toggle, template picker, wa.me deep link.
 - ✅ Responsive: desktop sidebar, mobile bottom nav.
+- ✅ Tagline updated to "Client Memory Studio"; signature updated to "Made by Raj with Love ❤️ using Emergent" everywhere.
 
 ## Backlog
 ### P1 — next iteration

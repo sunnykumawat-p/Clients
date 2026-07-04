@@ -28,6 +28,13 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const register = async (name, email, password) => {
+    const { data } = await api.post("/auth/register", { name, email, password });
+    localStorage.setItem("cp_token", data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem("cp_token");
     setUser(null);
@@ -35,7 +42,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthCtx.Provider value={{ user, login, logout }}>
+    <AuthCtx.Provider value={{ user, login, register, logout }}>
       {children}
     </AuthCtx.Provider>
   );

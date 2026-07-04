@@ -26,7 +26,7 @@ export default function Layout() {
             </div>
             <div className="leading-tight">
               <div className="text-[15px] font-semibold tracking-tight">ClientPulse</div>
-              <div className="text-[11px] text-[color:var(--cp-text-3)]">Relationship-first CRM</div>
+              <div className="text-[11px] text-[color:var(--cp-text-3)]">Client Memory Studio</div>
             </div>
           </Link>
         </div>
@@ -59,7 +59,7 @@ export default function Layout() {
           </div>
           <div className="text-center">
             <div className="font-signature text-[color:var(--cp-accent)] text-base">
-              Made by Raj with Love using Emergent
+              Made by Raj with Love ❤️ using Emergent
             </div>
           </div>
         </div>

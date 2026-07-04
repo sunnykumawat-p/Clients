@@ -153,7 +153,7 @@ export default function Settings() {
 
       <div className="text-center py-4">
         <div className="font-signature text-[color:var(--cp-accent)] text-xl" data-testid="settings-signature">
-          Made by Raj with Love using Emergent
+          Made by Raj with Love ❤️ using Emergent
         </div>
       </div>
     </div>

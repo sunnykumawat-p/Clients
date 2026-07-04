@@ -93,6 +93,21 @@ class LoginIn(BaseModel):
     password: str
 
 
+class RegisterIn(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str
+
+
 class ClientIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
     name: str
@@ -220,6 +235,84 @@ async def login(payload: LoginIn):
         "token": token,
         "user": {"id": user["id"], "email": user["email"], "name": user.get("name", "Owner")},
     }
+
+
+@api.post("/auth/register")
+async def register(payload: RegisterIn):
+    email = payload.email.strip().lower()
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if "@" not in email or "." not in email:
+        raise HTTPException(status_code=400, detail="Enter a valid email")
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+    user_id = str(uuid.uuid4())
+    await db.users.insert_one({
+        "id": user_id,
+        "email": email,
+        "password_hash": hash_password(payload.password),
+        "name": name,
+        "created_at": iso(now_utc()),
+    })
+    token = create_token(user_id, email)
+    return {"token": token, "user": {"id": user_id, "email": email, "name": name}}
+
+
+@api.post("/auth/forgot-password")
+async def forgot_password(payload: ForgotPasswordIn):
+    import secrets
+    email = payload.email.strip().lower()
+    user = await db.users.find_one({"email": email})
+    # Always return a generic response to avoid user enumeration — but if user exists,
+    # include the reset URL directly (since this build has no email integration).
+    if not user:
+        return {"ok": True, "message": "If an account exists, a reset link has been generated."}
+    token = secrets.token_urlsafe(32)
+    expires_at = now_utc() + timedelta(hours=1)
+    await db.password_reset_tokens.insert_one({
+        "token": token,
+        "user_id": user["id"],
+        "email": email,
+        "expires_at": iso(expires_at),
+        "used": False,
+        "created_at": iso(now_utc()),
+    })
+    reset_path = f"/reset-password?token={token}"
+    logger.info("Password reset requested for %s — token: %s", email, token)
+    return {
+        "ok": True,
+        "message": "Reset link generated. In production this would be emailed — for now, use the link below.",
+        "reset_token": token,
+        "reset_path": reset_path,
+        "expires_in_minutes": 60,
+    }
+
+
+@api.post("/auth/reset-password")
+async def reset_password(payload: ResetPasswordIn):
+    if len(payload.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    rec = await db.password_reset_tokens.find_one({"token": payload.token})
+    if not rec:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset link")
+    if rec.get("used"):
+        raise HTTPException(status_code=400, detail="This reset link has already been used")
+    try:
+        exp = datetime.fromisoformat(rec["expires_at"].replace("Z", "+00:00"))
+    except Exception:
+        exp = now_utc() - timedelta(seconds=1)
+    if now_utc() > exp:
+        raise HTTPException(status_code=400, detail="This reset link has expired")
+    await db.users.update_one(
+        {"id": rec["user_id"]},
+        {"$set": {"password_hash": hash_password(payload.password)}},
+    )
+    await db.password_reset_tokens.update_one({"token": payload.token}, {"$set": {"used": True}})
+    return {"ok": True, "message": "Password updated. You can now sign in."}
 
 
 @api.get("/auth/me")
