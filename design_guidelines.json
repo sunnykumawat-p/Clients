@@ -1,0 +1,117 @@
+{
+  "theme": "Light",
+  "archetype": "Organic & Earthy (Archetype 1) blended with Luxury (Archetype 5) for a premium, boutique CRM feel.",
+  "brand_identity": {
+    "name": "ClientPulse",
+    "tone": "Warm, human, relationship-first, professional but not sterile.",
+    "signature_text": "Made by Raj with Love using Emergent",
+    "support_email": "Sunnykumawat321@gmail.com"
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Outfit, sans-serif",
+      "body": "Manrope, sans-serif",
+      "branding_signature": "Cormorant Garamond, serif"
+    },
+    "scale": {
+      "h1": "text-4xl sm:text-5xl font-semibold tracking-tight text-[#2D2C2A]",
+      "h2": "text-2xl sm:text-3xl font-medium tracking-tight text-[#2D2C2A]",
+      "h3": "text-xl sm:text-2xl font-medium text-[#2D2C2A]",
+      "h4": "text-lg font-medium text-[#2D2C2A]",
+      "body": "text-base leading-relaxed text-[#6C6A65]",
+      "small": "text-sm text-[#9A9791]",
+      "signature": "text-lg md:text-xl font-serif italic text-[#8A6046]"
+    }
+  },
+  "colors": {
+    "background": {
+      "default": "#FAF9F7",
+      "paper": "#FFFFFF",
+      "subtle": "#F3F0EB"
+    },
+    "text": {
+      "primary": "#2D2C2A",
+      "secondary": "#6C6A65",
+      "tertiary": "#9A9791"
+    },
+    "accent": {
+      "primary": "#C05746",
+      "primary_hover": "#A64738",
+      "surface": "#FDF2F0"
+    },
+    "status": {
+      "success": "#4A7256",
+      "success_surface": "#ECF3EE",
+      "warning": "#D48C45",
+      "warning_surface": "#FDF4EB",
+      "info": "#4A6E82",
+      "info_surface": "#EEF4F8"
+    },
+    "border": "#EAE7E1"
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous spacing. Mobile-first for on-the-go usage between client visits. Large tap targets (min 48px).",
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "card_padding": "p-5 sm:p-6 lg:p-8",
+    "radius": "rounded-2xl",
+    "shadow": "shadow-[0_4px_20px_rgba(45,44,42,0.04)]",
+    "tap_target": "min-h-[48px] min-w-[48px]"
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#C05746] text-white hover:bg-[#A64738] rounded-xl px-6 py-3 font-medium transition-colors min-h-[48px] flex items-center justify-center shadow-sm",
+      "secondary": "bg-white text-[#2D2C2A] border border-[#EAE7E1] hover:bg-[#F3F0EB] rounded-xl px-6 py-3 font-medium transition-colors min-h-[48px] flex items-center justify-center",
+      "ghost": "text-[#6C6A65] hover:text-[#2D2C2A] hover:bg-[#F3F0EB] rounded-xl px-4 py-2 transition-colors"
+    },
+    "cards": {
+      "default": "bg-white rounded-2xl border border-[#EAE7E1] shadow-[0_4px_20px_rgba(45,44,42,0.04)] overflow-hidden"
+    },
+    "inputs": {
+      "text": "w-full bg-white border border-[#EAE7E1] rounded-xl px-4 py-3 min-h-[48px] text-base focus:outline-none focus:ring-2 focus:ring-[#C05746]/20 focus:border-[#C05746] transition-all",
+      "select": "w-full bg-white border border-[#EAE7E1] rounded-xl px-4 py-3 min-h-[48px] text-base focus:outline-none focus:ring-2 focus:ring-[#C05746]/20 focus:border-[#C05746]"
+    },
+    "badges": {
+      "stage": "inline-flex items-center px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider"
+    },
+    "navigation": {
+      "desktop": "fixed inset-y-0 left-0 w-64 bg-[#FAF9F7] border-r border-[#EAE7E1] flex flex-col justify-between py-6",
+      "mobile": "fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-[#EAE7E1] flex items-center justify-around z-50 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.02)]"
+    }
+  },
+  "page_layouts": {
+    "login": "Split screen desktop: left side branding with warm sand texture background, right side clean login form. Mobile: full screen warm background, white card for form. JWT flow.",
+    "dashboard": "Needs Attention Today view. Top: Pipeline value & high-level stats in a horizontal scroll on mobile. Below: Critical action list (overdue follow-ups, overdue payments, tasks due, quiet clients) in a vertical feed. Each item has a 1-tap 'Draft WhatsApp' action.",
+    "clients_list": "Searchable, filterable list of clients. Visual indicators for 'last contacted' (e.g. green/yellow/red dot). Easy '+' button floating on bottom right for mobile.",
+    "client_profile": "'Memory' View. Header with client details & current stage. Body divided into tabs: 'Timeline' (all interactions, payments, stage changes) and 'Tasks/Finances'. Floating action bar at bottom for quick logging (Interaction, Payment, Task).",
+    "templates": "Library of message templates. Categorized list. Tabs for English and Hindi (Devanagari). Edit view with variable injection (e.g., {{client_name}}, {{stage}}).",
+    "analytics": "Simple, clean charts. Active clients, MRR, pipeline value. Use Recharts with warm earthy colors matching the palette.",
+    "settings": "Simple list for stages editing, follow-up threshold (days), and system info. Footer with signature and support email."
+  },
+  "interactions_and_motion": {
+    "golden_rule_trigger": "When logging an action, show a subtle slide-up toast or modal offering 'Draft WhatsApp update?'. If accepted, auto-generate wa.me link.",
+    "transitions": "Page transitions should be swift cross-fades. Buttons should have slight scale-down on active (`active:scale-[0.98]`)."
+  },
+  "media": {
+    "images": {
+      "login_background": {
+        "url": "https://images.pexels.com/photos/68498/pexels-photo-68498.jpeg",
+        "description": "Abstract rippling pattern on desert sand dunes with warm tones. Used for login background or atmospheric headers."
+      },
+      "avatar_placeholder": {
+        "url": "https://images.unsplash.com/photo-1699899657680-421c2c2d5064?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzV8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBjb25zdWx0YW50JTIwaGVhZHNob3QlMjB3YXJtJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzgyNDY5MTMxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Professional consultant headshot. Use for client avatars where real photos aren't uploaded."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette. Do NOT introduce standard blue, purple, or teal.",
+    "Ensure 'Outfit', 'Manrope', and 'Cormorant Garamond' fonts are imported via Google Fonts.",
+    "Every actionable item MUST have a data-testid attribute.",
+    "Implement the 'Made by Raj with Love using Emergent' footer in Cormorant Garamond italic globally.",
+    "Include the support email Sunnykumawat321@gmail.com clearly in the Settings page and global error boundaries.",
+    "The 'Needs Attention Today' dashboard is the core feature. Make the action feed highly scannable.",
+    "Use Shadcn UI for complex components, but heavily customize to remove the generic 'Vercel' look by applying the rounded-2xl radii and warm border colors.",
+    "Ensure mobile bottom navigation uses safe-area padding for modern phones. Desktop uses sidebar.",
+    "The auto-draft WhatsApp feature should construct a deep link like: https://wa.me/PHONE?text=ENCODED_MESSAGE"
+  ]
+}
