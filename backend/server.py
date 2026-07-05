@@ -600,19 +600,43 @@ async def attention(user=Depends(get_current_user)):
             })
 
         money = await client_money(c["id"], float(c.get("quoted_value", 0)))
-        if money["outstanding"] > 0 and stage in OPEN_STAGES and stage != "Lead" and days >= 7:
-            overdue_payments.append({
-                "client_id": c["id"],
-                "name": c["name"],
-                "phone": c.get("phone", ""),
-                "stage": stage,
-                "outstanding": money["outstanding"],
-                "quoted": money["quoted"],
-                "paid": money["paid"],
-                "preferred_language": c.get("preferred_language", "en"),
-                "reason": f"₹{money['outstanding']:.0f} outstanding",
-                "category": "payment_reminder",
-            })
+        if money["outstanding"] > 0 and stage in OPEN_STAGES and stage != "Lead":
+            # Age off balance, not contact recency. Priority:
+            #  1) days since last payment received (if any payment exists)
+            #  2) else days since stage_change → Signed (or subsequent paid stage)
+            #  3) else days since client created
+            outstanding_since = None
+            last_payment = await db.payments.find_one(
+                {"client_id": c["id"]}, {"_id": 0}, sort=[("received_at", -1)]
+            )
+            if last_payment:
+                outstanding_since = last_payment.get("received_at") or last_payment.get("created_at")
+            else:
+                signed_inter = await db.interactions.find_one(
+                    {"client_id": c["id"], "type": "stage_change", "meta.to": {"$in": ["Signed", "In Progress", "Delivered"]}},
+                    {"_id": 0},
+                    sort=[("created_at", -1)],
+                )
+                outstanding_since = (signed_inter or {}).get("created_at") or c.get("created_at")
+            try:
+                since_dt = datetime.fromisoformat(outstanding_since.replace("Z", "+00:00"))
+                outstanding_days = (today - since_dt).days
+            except Exception:
+                outstanding_days = 0
+            if outstanding_days >= 14:
+                overdue_payments.append({
+                    "client_id": c["id"],
+                    "name": c["name"],
+                    "phone": c.get("phone", ""),
+                    "stage": stage,
+                    "outstanding": money["outstanding"],
+                    "quoted": money["quoted"],
+                    "paid": money["paid"],
+                    "outstanding_days": outstanding_days,
+                    "preferred_language": c.get("preferred_language", "en"),
+                    "reason": f"₹{money['outstanding']:.0f} outstanding for {outstanding_days} days",
+                    "category": "payment_reminder",
+                })
 
     # Tasks due today / overdue
     async for t in db.tasks.find({"completed": False}, {"_id": 0}):
@@ -639,6 +663,29 @@ async def attention(user=Depends(get_current_user)):
                 "category": "milestone_update",
             })
 
+    # Ready for re-engagement — Past clients silent for 90+ days
+    reengagement_ready = []
+    for c in clients:
+        if c.get("stage") != "Past":
+            continue
+        lc = c.get("last_contact_at") or c.get("created_at")
+        try:
+            last = datetime.fromisoformat(lc.replace("Z", "+00:00")) if lc else today
+        except Exception:
+            last = today
+        gap = (today - last).days
+        if gap >= 90:
+            reengagement_ready.append({
+                "client_id": c["id"],
+                "name": c["name"],
+                "phone": c.get("phone", ""),
+                "stage": c.get("stage", "Past"),
+                "days_since_contact": gap,
+                "preferred_language": c.get("preferred_language", "en"),
+                "reason": f"Delivered — {gap} days quiet, ready for a check-in",
+                "category": "reengagement",
+            })
+
     # Stats
     total_active = sum(1 for c in clients if c.get("stage") in OPEN_STAGES)
     pipeline_value = sum(float(c.get("quoted_value", 0)) for c in clients if c.get("stage") in OPEN_STAGES)
@@ -647,9 +694,15 @@ async def attention(user=Depends(get_current_user)):
 
     # This-month + this-week metrics
     month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # Previous month range (for WoW deltas)
+    if month_start.month == 1:
+        prev_month_start = month_start.replace(year=month_start.year - 1, month=12)
+    else:
+        prev_month_start = month_start.replace(month=month_start.month - 1)
     week_ago = today - timedelta(days=7)
 
     revenue_this_month = 0.0
+    revenue_last_month = 0.0
     revenue_all_time = 0.0
     async for p in db.payments.find({}, {"_id": 0}):
         try:
@@ -660,6 +713,8 @@ async def attention(user=Depends(get_current_user)):
         revenue_all_time += amt
         if when >= month_start:
             revenue_this_month += amt
+        elif when >= prev_month_start:
+            revenue_last_month += amt
 
     # Total outstanding across open clients (money owed to owner)
     total_outstanding = 0.0
@@ -680,6 +735,7 @@ async def attention(user=Depends(get_current_user)):
 
     # Signed / won this month (from interactions with stage_change → Signed)
     signed_this_month = 0
+    signed_last_month = 0
     async for i in db.interactions.find({"type": "stage_change", "meta.to": "Signed"}, {"_id": 0}):
         try:
             when = datetime.fromisoformat(i["created_at"].replace("Z", "+00:00"))
@@ -687,6 +743,8 @@ async def attention(user=Depends(get_current_user)):
             continue
         if when >= month_start:
             signed_this_month += 1
+        elif when >= prev_month_start:
+            signed_last_month += 1
 
     # Pipeline breakdown by stage (all stages)
     stage_settings_list = settings.get("stages", STAGES_DEFAULT)
@@ -715,25 +773,80 @@ async def attention(user=Depends(get_current_user)):
         if delta <= timedelta(days=7):
             contacted_this_week += 1
 
+    # 7-day contact activity sparkline (interactions per day, oldest first → today last)
+    day_starts = [(today - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0) for i in range(6, -1, -1)]
+    contacts_daily = [0] * 7
+    async for i in db.interactions.find({}, {"_id": 0, "created_at": 1}):
+        try:
+            when = datetime.fromisoformat(i["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if when < day_starts[0]:
+            continue
+        for idx in range(7):
+            end = day_starts[idx] + timedelta(days=1)
+            if day_starts[idx] <= when < end:
+                contacts_daily[idx] += 1
+                break
+
+    # Relationships Rescued — clients where a message_sent in trailing 7 days
+    # followed a period of silence >= follow_up_days (default 3), i.e., we
+    # broke a real silence with a message.
+    rescued_client_ids = set()
+    async for msg in db.interactions.find({"type": "message_sent"}, {"_id": 0}):
+        try:
+            msg_when = datetime.fromisoformat(msg["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if msg_when < week_ago:
+            continue
+        # Find previous interaction before this message
+        prev = await db.interactions.find_one(
+            {
+                "client_id": msg["client_id"],
+                "created_at": {"$lt": msg["created_at"]},
+            },
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        )
+        if not prev:
+            continue
+        try:
+            prev_when = datetime.fromisoformat(prev["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        silence_days = (msg_when - prev_when).days
+        if silence_days >= follow_up_days:
+            rescued_client_ids.add(msg["client_id"])
+    relationships_rescued = len(rescued_client_ids)
+
     return {
         "overdue_followups": overdue_followups,
         "going_quiet": going_quiet,
         "overdue_payments": overdue_payments,
         "tasks_due": tasks_due,
+        "reengagement_ready": reengagement_ready,
         "stats": {
             "total_active": total_active,
             "pipeline_value": pipeline_value,
             "total_leads": total_leads,
             "total_clients": total_clients,
-            "attention_count": len(overdue_followups) + len(going_quiet) + len(overdue_payments) + len(tasks_due),
+            "attention_count": (
+                len(overdue_followups) + len(going_quiet) + len(overdue_payments)
+                + len(tasks_due) + len(reengagement_ready)
+            ),
             "revenue_this_month": revenue_this_month,
+            "revenue_last_month": revenue_last_month,
             "revenue_all_time": revenue_all_time,
             "total_outstanding": total_outstanding,
             "new_leads_week": new_leads_week,
             "signed_this_month": signed_this_month,
+            "signed_last_month": signed_last_month,
             "avg_deal_size": avg_deal_size,
             "contacted_today": contacted_today,
             "contacted_this_week": contacted_this_week,
+            "contacts_daily": contacts_daily,
+            "relationships_rescued": relationships_rescued,
         },
         "pipeline_by_stage": pipeline_by_stage,
         "settings": {"follow_up_lead_days": follow_up_days, "quiet_active_days": quiet_days},
@@ -803,6 +916,33 @@ async def analytics(user=Depends(get_current_user)):
             pass
     avg_lead_to_signed = round(sum(signed_durations) / len(signed_durations), 1) if signed_durations else 0
 
+    # Relationships Rescued (last 7 days) — clients where a message_sent broke silence >= 3 days
+    week_ago = now_utc() - timedelta(days=7)
+    settings = await get_settings()
+    threshold_days = settings.get("follow_up_lead_days", 3)
+    rescued_ids = set()
+    async for msg in db.interactions.find({"type": "message_sent"}, {"_id": 0}):
+        try:
+            msg_when = datetime.fromisoformat(msg["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if msg_when < week_ago:
+            continue
+        prev = await db.interactions.find_one(
+            {"client_id": msg["client_id"], "created_at": {"$lt": msg["created_at"]}},
+            {"_id": 0},
+            sort=[("created_at", -1)],
+        )
+        if not prev:
+            continue
+        try:
+            prev_when = datetime.fromisoformat(prev["created_at"].replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if (msg_when - prev_when).days >= threshold_days:
+            rescued_ids.add(msg["client_id"])
+    relationships_rescued = len(rescued_ids)
+
     return {
         "totals": {
             "total_clients": total,
@@ -811,6 +951,9 @@ async def analytics(user=Depends(get_current_user)):
             "revenue_month": revenue_month,
             "revenue_all": revenue_all,
             "avg_lead_to_signed_days": avg_lead_to_signed,
+            "relationships_rescued": relationships_rescued,
+            "rescue_window_days": 7,
+            "rescue_threshold_days": threshold_days,
         },
         "by_stage": by_stage,
         "by_source": by_source,

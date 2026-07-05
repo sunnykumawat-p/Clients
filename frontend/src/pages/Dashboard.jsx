@@ -13,12 +13,27 @@ import {
   ArrowRight,
   Inbox,
   TrendingUp,
+  TrendingDown,
   Users,
   Coins,
   Activity,
   Sparkle,
   CalendarDays,
+  HeartHandshake,
+  Repeat2,
 } from "lucide-react";
+
+// Small helper for month-over-month deltas rendered on KPI cards.
+function monthDelta(current, previous, format) {
+  if (previous == null) return null;
+  const diff = (current || 0) - (previous || 0);
+  if (diff === 0 && previous === 0) return null;
+  const up = diff >= 0;
+  return {
+    up,
+    label: `${up ? "↑" : "↓"} ${format(Math.abs(diff))} vs last month`,
+  };
+}
 
 const CardSection = ({ title, count, icon: Icon, tint, children }) => (
   <div className="cp-card overflow-hidden">
@@ -33,7 +48,7 @@ const CardSection = ({ title, count, icon: Icon, tint, children }) => (
         <div>
           <div className="text-[15px] font-semibold">{title}</div>
           <div className="text-[12px] text-[color:var(--cp-text-3)]">
-            {count} {count === 1 ? "item" : "items"} need attention
+            {count === 1 ? "1 item needs attention" : `${count} items need attention`}
           </div>
         </div>
       </div>
@@ -135,11 +150,12 @@ export default function Dashboard() {
       </div>
 
       {/* Secondary KPI strip — money + momentum */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8 cp-stagger">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-4 cp-stagger">
         <StatCard
           label="Revenue this month"
           value={formatMoney(s.revenue_this_month)}
           sub={`${formatMoney(s.revenue_all_time)} all-time`}
+          delta={monthDelta(s.revenue_this_month, s.revenue_last_month, formatMoney)}
           icon={Coins}
           tint="var(--cp-success)"
           testId="stat-rev-month"
@@ -147,7 +163,7 @@ export default function Dashboard() {
         <StatCard
           label="Outstanding dues"
           value={formatMoney(s.total_outstanding)}
-          sub={s.total_outstanding > 0 ? "Across active clients" : "Nothing pending"}
+          sub={s.total_outstanding > 0 ? "Ages off balance, not silence" : "Nothing pending"}
           icon={Wallet}
           tint={s.total_outstanding > 0 ? "var(--cp-accent)" : undefined}
           testId="stat-outstanding"
@@ -156,6 +172,7 @@ export default function Dashboard() {
           label="Won this month"
           value={s.signed_this_month}
           sub="Signed conversions"
+          delta={monthDelta(s.signed_this_month, s.signed_last_month, (v) => `${v}`)}
           icon={CheckCircle2}
           tint="var(--cp-success)"
           testId="stat-won"
@@ -165,9 +182,37 @@ export default function Dashboard() {
           value={`${s.contacted_this_week}/${s.total_clients}`}
           sub={`${s.contacted_today} in the last 24h`}
           icon={Activity}
+          sparkline={s.contacts_daily}
           testId="stat-contacted"
         />
       </div>
+
+      {/* Rescued strip — proof-of-value */}
+      {typeof s.relationships_rescued === "number" && (
+        <div
+          className="cp-card mb-8 px-5 py-4 flex items-center gap-3 flex-wrap"
+          data-testid="stat-rescued"
+          style={{
+            background:
+              "linear-gradient(135deg, var(--cp-accent-surface), rgba(74,114,86,0.06))",
+            borderColor: "rgba(192,87,70,0.25)",
+          }}
+        >
+          <div className="w-10 h-10 rounded-xl bg-[color:var(--cp-accent)]/12 text-[color:var(--cp-accent)] flex items-center justify-center">
+            <HeartHandshake size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[13.5px] text-[color:var(--cp-text)]">
+              <span className="font-semibold text-[color:var(--cp-accent)]">{s.relationships_rescued}</span>{" "}
+              {s.relationships_rescued === 1 ? "relationship" : "relationships"} rescued in the last 7 days —
+              clients who were silent, then heard from you.
+            </div>
+          </div>
+          <Link to="/analytics" className="cp-btn-ghost text-[13px] shrink-0" data-testid="link-rescued-analytics">
+            See analytics <ArrowRight size={14} />
+          </Link>
+        </div>
+      )}
 
       {/* Pipeline breakdown */}
       {data.pipeline_by_stage && data.pipeline_by_stage.length > 0 && (
@@ -265,10 +310,34 @@ export default function Dashboard() {
                     <StageBadge stage={it.stage} />
                   </div>
                   <div className="text-[13px] text-[color:var(--cp-text-2)] mt-0.5">
-                    {formatMoney(it.outstanding)} pending · {formatMoney(it.paid)} received of {formatMoney(it.quoted)}
+                    {formatMoney(it.outstanding)} pending · unpaid for {it.outstanding_days ?? 0} days · {formatMoney(it.paid)} received of {formatMoney(it.quoted)}
                   </div>
                 </div>
                 <ActionButtons item={it} onWa={() => openWa(it, "payment_reminder", { amount: it.outstanding })} />
+              </Row>
+            ))}
+          </CardSection>
+        )}
+
+        {data.reengagement_ready && data.reengagement_ready.length > 0 && (
+          <CardSection
+            title="Ready for re-engagement"
+            count={data.reengagement_ready.length}
+            icon={Repeat2}
+            tint={{ bg: "rgba(138,96,70,0.12)", fg: "#8A6046" }}
+          >
+            {data.reengagement_ready.map((it) => (
+              <Row key={it.client_id} testId={`row-reengagement-${it.client_id}`}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link to={`/clients/${it.client_id}`} className="font-medium hover:text-[color:var(--cp-accent)] truncate">
+                      {it.name}
+                    </Link>
+                    <StageBadge stage={it.stage} />
+                  </div>
+                  <div className="text-[13px] text-[color:var(--cp-text-2)] mt-0.5">{it.reason}</div>
+                </div>
+                <ActionButtons item={it} onWa={() => openWa(it, "reengagement")} />
               </Row>
             ))}
           </CardSection>
@@ -325,7 +394,7 @@ export default function Dashboard() {
   );
 }
 
-const StatCard = ({ label, value, sub, icon: Icon, highlight, tint, testId }) => (
+const StatCard = ({ label, value, sub, icon: Icon, highlight, tint, delta, sparkline, testId }) => (
   <div
     className={`cp-card p-4 md:p-5 relative overflow-hidden ${highlight ? "ring-1 ring-[color:var(--cp-accent)]/30" : ""}`}
     data-testid={testId}
@@ -350,11 +419,51 @@ const StatCard = ({ label, value, sub, icon: Icon, highlight, tint, testId }) =>
     >
       {value}
     </div>
-    {sub && (
+    {delta && (
+      <div
+        className={`mt-1 inline-flex items-center gap-1 text-[11.5px] font-medium ${delta.up ? "text-[color:var(--cp-success)]" : "text-[color:var(--cp-accent)]"}`}
+        data-testid={`${testId}-delta`}
+      >
+        {delta.label}
+      </div>
+    )}
+    {sub && !delta && (
       <div className="mt-1 text-[12px] text-[color:var(--cp-text-3)]">{sub}</div>
+    )}
+    {delta && sub && (
+      <div className="mt-0.5 text-[11px] text-[color:var(--cp-text-3)]">{sub}</div>
+    )}
+    {sparkline && sparkline.length > 0 && (
+      <div className="mt-2" data-testid={`${testId}-sparkline`}>
+        <Sparkline values={sparkline} />
+      </div>
     )}
   </div>
 );
+
+const Sparkline = ({ values }) => {
+  const max = Math.max(1, ...values);
+  const bars = values.length;
+  return (
+    <div className="flex items-end gap-[3px] h-8">
+      {values.map((v, i) => {
+        const h = Math.max(6, (v / max) * 100);
+        const isToday = i === bars - 1;
+        return (
+          <div
+            key={i}
+            className="flex-1 rounded-sm transition-colors"
+            style={{
+              height: `${h}%`,
+              background: isToday ? "var(--cp-accent)" : "rgba(192,87,70,0.35)",
+            }}
+            title={`${v} interaction${v === 1 ? "" : "s"}`}
+          />
+        );
+      })}
+    </div>
+  );
+};
 
 const PipelineBars = ({ data }) => {
   const total = Math.max(1, data.reduce((a, b) => a + b.count, 0));
@@ -398,7 +507,7 @@ const PipelineBars = ({ data }) => {
 };
 
 const STAGE_BAR_COLOR = {
-  Lead: "#4A6E82",
+  Lead: "#B47530",       // warm amber (was blue-gray)
   Pitched: "#94682F",
   Negotiating: "#D48C45",
   Signed: "#4A7256",

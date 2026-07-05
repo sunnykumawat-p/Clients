@@ -1,13 +1,28 @@
 """
-ClientPulse — Backend API tests
-Covers: auth (login, /me, invalid), clients CRUD, stage change, interactions/timeline,
-tasks (create+complete), payments, templates (CRUD), dashboard/attention, analytics, settings.
+ClientPulse — Backend API tests (iteration 2)
+
+Covers Tier 1 baseline PLUS 8+2 targeted fixes:
+  - Exactly 15 seed clients, exactly 14 templates, no TEST/PLAYWRIGHT/'Raj Kumawat' artifacts
+  - /api/dashboard/attention.stats now returns: revenue_last_month, signed_last_month,
+    contacts_daily (list[7]), relationships_rescued
+  - /api/dashboard/attention.overdue_payments requires outstanding_days >= 14, includes outstanding_days field
+  - /api/dashboard/attention.reengagement_ready includes Past-stage clients silent >= 90 days
+  - /api/analytics/summary.totals includes relationships_rescued, rescue_window_days (=7),
+    rescue_threshold_days (=3 by default)
+  - Payment on an "aged" client removes it from overdue_payments; a fresh Signed
+    with quoted_value > 0 does NOT immediately appear in overdue_payments
+  - Task delete endpoint DELETE /api/tasks/{tid} works
+  - Golden Rules regression: log payment → payment interaction on timeline; complete task → task_completed on timeline; stage change → stage_change on timeline
+
+Run:
+    pytest /app/backend/tests/backend_test.py -v --junitxml=/app/test_reports/pytest/pytest_results.xml
 """
 
 import os
 import uuid
 import pytest
 import requests
+from datetime import datetime, timezone, timedelta
 
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/") if os.environ.get("REACT_APP_BACKEND_URL") else "https://high-touch-clients.preview.emergentagent.com"
 
@@ -71,15 +86,20 @@ class TestAuth:
 
 # ---------- Clients ----------
 class TestClients:
-    def test_list_seeded_clients(self, auth_client):
+    def test_list_exactly_15_seed_clients_and_no_test_artifacts(self, auth_client):
+        """Seed must be exactly 15, with no 'Raj Kumawat', 'TEST_*', or 'PLAYWRIGHT_*' leftover."""
         r = auth_client.get(f"{BASE_URL}/api/clients")
         assert r.status_code == 200
         data = r.json()
         assert isinstance(data, list)
-        assert len(data) >= 15, f"Expected at least 15 seed clients, got {len(data)}"
         names = [c["name"] for c in data]
+        assert len(data) == 15, f"Expected exactly 15 seed clients, got {len(data)}: {names}"
         assert "Tuku's ZAARRAA" in names
         assert "Sunshine Family Clinic" in names
+        assert "Ravi Fitness" in names
+        assert "Raj Kumawat" not in names, f"Test client 'Raj Kumawat' still present: {names}"
+        bad = [n for n in names if "TEST" in n or "PLAYWRIGHT" in n]
+        assert not bad, f"Test artifacts left in clients: {bad}"
         # Ensure _id excluded
         assert all("_id" not in c for c in data)
 
@@ -105,18 +125,15 @@ class TestClients:
         cid = r.json()["id"]
         assert r.json()["name"] == payload["name"]
 
-        # GET verifies persistence
         r2 = auth_client.get(f"{BASE_URL}/api/clients/{cid}")
         assert r2.status_code == 200
         assert r2.json()["quoted_value"] == 10000
 
-        # UPDATE — PUT accepts full ClientIn body
         r3 = auth_client.put(f"{BASE_URL}/api/clients/{cid}", json={**payload, "phone": "+919111111111"})
         assert r3.status_code == 200, r3.text
         r4 = auth_client.get(f"{BASE_URL}/api/clients/{cid}")
         assert r4.json()["phone"] == "+919111111111"
 
-        # DELETE
         r5 = auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
         assert r5.status_code in (200, 204)
         r6 = auth_client.get(f"{BASE_URL}/api/clients/{cid}")
@@ -126,7 +143,6 @@ class TestClients:
 # ---------- Stage change / interactions / timeline ----------
 class TestStageAndTimeline:
     def test_stage_change_and_timeline(self, auth_client):
-        # Create a fresh test client to avoid mutating seeds
         payload = {"name": f"TEST_Stage_{uuid.uuid4().hex[:6]}", "phone": "+919000000010", "preferred_language": "en", "stage": "Lead"}
         cid = auth_client.post(f"{BASE_URL}/api/clients", json=payload).json()["id"]
 
@@ -141,7 +157,6 @@ class TestStageAndTimeline:
         events = r3.json()
         assert any(e.get("type") == "stage_change" for e in events), f"No stage_change in timeline: {events}"
 
-        # cleanup
         auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
 
     def test_log_interaction(self, auth_client):
@@ -153,10 +168,22 @@ class TestStageAndTimeline:
         assert any("Test note" in (e.get("description") or "") for e in tl)
         auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
 
+    def test_message_sent_interaction_logged(self, auth_client):
+        """WhatsAppDraft fire-and-forget POSTs a message_sent interaction; verify endpoint works with meta."""
+        payload = {"name": f"TEST_Msg_{uuid.uuid4().hex[:6]}", "phone": "+919000000012", "preferred_language": "en", "stage": "Lead"}
+        cid = auth_client.post(f"{BASE_URL}/api/clients", json=payload).json()["id"]
+        r = auth_client.post(f"{BASE_URL}/api/clients/{cid}/interactions",
+                             json={"type": "message_sent", "description": "WhatsApp sent (EN): Hi tester",
+                                   "meta": {"category": "follow_up", "language": "en"}})
+        assert r.status_code in (200, 201), r.text
+        tl = auth_client.get(f"{BASE_URL}/api/clients/{cid}/timeline").json()
+        assert any(e.get("type") == "message_sent" for e in tl)
+        auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
+
 
 # ---------- Tasks ----------
 class TestTasks:
-    def test_create_and_complete_task(self, auth_client):
+    def test_create_complete_and_delete_task(self, auth_client):
         payload = {"name": f"TEST_Task_{uuid.uuid4().hex[:6]}", "phone": "+919000000020", "preferred_language": "en", "stage": "In Progress"}
         cid = auth_client.post(f"{BASE_URL}/api/clients", json=payload).json()["id"]
 
@@ -164,7 +191,7 @@ class TestTasks:
         assert r.status_code in (200, 201), r.text
         tid = r.json()["id"]
 
-        # list tasks
+        # list
         r2 = auth_client.get(f"{BASE_URL}/api/clients/{cid}/tasks")
         assert r2.status_code == 200
         assert any(t["id"] == tid for t in r2.json())
@@ -179,10 +206,21 @@ class TestTasks:
 
         tl = auth_client.get(f"{BASE_URL}/api/clients/{cid}/timeline").json()
         assert any("task" in (e.get("type") or "").lower() for e in tl), "Task event not in timeline"
+
+        # NEW: delete task endpoint (used by ClientProfile Tasks tab)
+        # Create a second pending task and DELETE it
+        r5 = auth_client.post(f"{BASE_URL}/api/clients/{cid}/tasks", json={"title": "TEST task to delete", "due_date": None})
+        assert r5.status_code in (200, 201)
+        tid2 = r5.json()["id"]
+        r6 = auth_client.delete(f"{BASE_URL}/api/tasks/{tid2}")
+        assert r6.status_code in (200, 204), f"DELETE /api/tasks/{{tid}} failed: {r6.status_code} {r6.text}"
+        remaining = auth_client.get(f"{BASE_URL}/api/clients/{cid}/tasks").json()
+        assert not any(t["id"] == tid2 for t in remaining), "Task not actually deleted"
+
         auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
 
 
-# ---------- Payments ----------
+# ---------- Payments (Golden Rule: log payment triggers timeline; outstanding updates) ----------
 class TestPayments:
     def test_log_payment_updates_outstanding(self, auth_client):
         payload = {"name": f"TEST_Pay_{uuid.uuid4().hex[:6]}", "phone": "+919000000030", "preferred_language": "en", "stage": "Signed", "quoted_value": 20000}
@@ -191,16 +229,13 @@ class TestPayments:
         r = auth_client.post(f"{BASE_URL}/api/clients/{cid}/payments", json={"amount": 5000, "method": "UPI"})
         assert r.status_code in (200, 201), r.text
 
-        # verify payments list
         r2 = auth_client.get(f"{BASE_URL}/api/clients/{cid}/payments")
         assert r2.status_code == 200
         assert any(p["amount"] == 5000 for p in r2.json())
 
-        # verify client outstanding via enriched money object
         client = auth_client.get(f"{BASE_URL}/api/clients/{cid}").json()
         assert client.get("money", {}).get("paid") == 5000
         assert client.get("money", {}).get("outstanding") == 15000
-        # timeline has payment
         tl = auth_client.get(f"{BASE_URL}/api/clients/{cid}/timeline").json()
         assert any("payment" in (e.get("type") or "").lower() for e in tl)
         auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
@@ -208,13 +243,15 @@ class TestPayments:
 
 # ---------- Templates ----------
 class TestTemplates:
-    def test_seeded_templates(self, auth_client):
+    def test_exactly_14_seeded_templates_and_no_test_artifacts(self, auth_client):
         r = auth_client.get(f"{BASE_URL}/api/templates")
         assert r.status_code == 200
         tpls = r.json()
-        assert len(tpls) >= 14, f"Expected >=14 seed templates, got {len(tpls)}"
+        assert len(tpls) == 14, f"Expected exactly 14 seed templates, got {len(tpls)}: {[t['name'] for t in tpls]}"
+        bad = [t["name"] for t in tpls if "TEST" in t["name"] or "PLAYWRIGHT" in t["name"]]
+        assert not bad, f"Test artifacts in templates: {bad}"
         langs = {t.get("language") for t in tpls}
-        assert "en" in langs and "hi" in langs
+        assert langs == {"en", "hi"}
         cats = {t.get("category") for t in tpls}
         assert len(cats) >= 7, f"Expected >=7 categories, got {cats}"
 
@@ -224,52 +261,126 @@ class TestTemplates:
         assert r.status_code in (200, 201), r.text
         tid = r.json()["id"]
 
-        # update - PUT requires full TemplateIn body
         r2 = auth_client.put(f"{BASE_URL}/api/templates/{tid}", json={**payload, "body": "Hi {name}, updated."})
         assert r2.status_code == 200, r2.text
         r3 = auth_client.get(f"{BASE_URL}/api/templates").json()
         upd = [t for t in r3 if t["id"] == tid][0]
         assert "updated" in upd["body"]
 
-        # delete
         r4 = auth_client.delete(f"{BASE_URL}/api/templates/{tid}")
         assert r4.status_code in (200, 204)
         r5 = auth_client.get(f"{BASE_URL}/api/templates").json()
         assert not any(t["id"] == tid for t in r5)
 
 
-# ---------- Dashboard attention ----------
-class TestDashboard:
-    def test_attention_shape(self, auth_client):
+# ---------- Dashboard attention — new shape ----------
+class TestDashboardAttention:
+    def test_attention_shape_has_new_stats(self, auth_client):
         r = auth_client.get(f"{BASE_URL}/api/dashboard/attention")
         assert r.status_code == 200
         data = r.json()
-        for k in ("overdue_followups", "going_quiet", "overdue_payments", "tasks_due", "stats"):
+        for k in ("overdue_followups", "going_quiet", "overdue_payments", "tasks_due", "reengagement_ready", "stats"):
             assert k in data, f"missing key: {k}"
         stats = data["stats"]
-        for k in ("total_active", "pipeline_value", "total_leads", "attention_count"):
-            assert k in stats, f"missing stat: {k} in {stats}"
-        # Sunshine Family Clinic (4-day-old Lead) should be in overdue_followups
-        assert any(c["name"] == "Sunshine Family Clinic" for c in data["overdue_followups"])
-        # Tuku's ZAARRAA should appear in going_quiet
-        assert any(c["name"] == "Tuku's ZAARRAA" for c in data["going_quiet"])
+        for k in ("total_active", "pipeline_value", "total_leads", "attention_count",
+                  "revenue_last_month", "revenue_this_month",
+                  "signed_last_month", "signed_this_month",
+                  "contacts_daily", "relationships_rescued"):
+            assert k in stats, f"missing stat: {k}"
+
+        # Sparkline is exactly 7 numbers, oldest → today
+        cd = stats["contacts_daily"]
+        assert isinstance(cd, list) and len(cd) == 7, f"contacts_daily must be a 7-element list, got {cd}"
+        assert all(isinstance(v, (int, float)) for v in cd)
+
+        # relationships_rescued is an integer
+        assert isinstance(stats["relationships_rescued"], int)
+
+        # Data types on WoW fields
+        assert isinstance(stats["revenue_last_month"], (int, float))
+        assert isinstance(stats["signed_last_month"], int)
+
+    def test_reengagement_ready_contains_ravi_fitness(self, auth_client):
+        """Ravi Fitness (Past, 120 days quiet) must appear in reengagement_ready."""
+        r = auth_client.get(f"{BASE_URL}/api/dashboard/attention")
+        assert r.status_code == 200
+        rr = r.json()["reengagement_ready"]
+        names = [x["name"] for x in rr]
+        assert "Ravi Fitness" in names, f"Ravi Fitness missing from reengagement_ready: {names}"
+        # Each row must expose days_since_contact and be Past stage
+        ravi = next(x for x in rr if x["name"] == "Ravi Fitness")
+        assert ravi["stage"] == "Past"
+        assert ravi["days_since_contact"] >= 90
+
+    def test_overdue_followups_and_going_quiet_shape(self, auth_client):
+        """Shape check only — seed clients may have had their last_contact_at bumped by
+        previous WhatsApp-send tests, so we only validate structure, not membership."""
+        r = auth_client.get(f"{BASE_URL}/api/dashboard/attention").json()
+        assert isinstance(r["overdue_followups"], list)
+        for c in r["overdue_followups"]:
+            assert c["stage"] == "Lead"
+            assert "days_since_contact" in c and c["days_since_contact"] >= 3
+        assert isinstance(r["going_quiet"], list)
+        for c in r["going_quiet"]:
+            assert c["stage"] in {"Signed", "In Progress"}
+            assert "days_since_contact" in c and c["days_since_contact"] >= 7
+
+    def test_overdue_payments_only_after_14_days_aging(self, auth_client):
+        """A fresh Signed client with quoted_value > 0 and NO payment must NOT appear in overdue_payments."""
+        payload = {"name": f"TEST_Fresh_{uuid.uuid4().hex[:6]}", "phone": "+919000000040",
+                   "preferred_language": "en", "stage": "Signed", "quoted_value": 50000}
+        cid = auth_client.post(f"{BASE_URL}/api/clients", json=payload).json()["id"]
+        try:
+            r = auth_client.get(f"{BASE_URL}/api/dashboard/attention").json()
+            names = [c["name"] for c in r["overdue_payments"]]
+            assert payload["name"] not in names, \
+                f"Fresh Signed client should NOT be in overdue_payments (needs 14+ days aging); found: {names}"
+            # Every item that IS present must expose outstanding_days
+            for item in r["overdue_payments"]:
+                assert "outstanding_days" in item, f"overdue_payments missing outstanding_days: {item}"
+                assert item["outstanding_days"] >= 14
+        finally:
+            auth_client.delete(f"{BASE_URL}/api/clients/{cid}")
+
+    def test_payment_removes_from_overdue(self, auth_client):
+        """Log a payment on a client and ensure they don't appear in overdue_payments after (payment reset ages timer)."""
+        # Use existing seeded client that could be overdue (Tuku's ZAARRAA) — after payment their last_payment date
+        # becomes fresh, so outstanding_days should reset to 0 and they're removed from overdue_payments.
+        r0 = auth_client.get(f"{BASE_URL}/api/clients").json()
+        tuku = next(c for c in r0 if c["name"] == "Tuku's ZAARRAA")
+
+        # Log a small payment
+        pr = auth_client.post(f"{BASE_URL}/api/clients/{tuku['id']}/payments",
+                              json={"amount": 100, "method": "UPI"})
+        assert pr.status_code in (200, 201), pr.text
+        pay_id = pr.json().get("id")
+
+        att = auth_client.get(f"{BASE_URL}/api/dashboard/attention").json()
+        names_overdue = [c["name"] for c in att["overdue_payments"]]
+        assert "Tuku's ZAARRAA" not in names_overdue, \
+            f"Client with fresh payment should be removed from overdue_payments; found: {names_overdue}"
 
     def test_attention_requires_auth(self, api_client):
         r = api_client.get(f"{BASE_URL}/api/dashboard/attention")
         assert r.status_code == 401
 
 
-# ---------- Analytics ----------
+# ---------- Analytics — new totals fields ----------
 class TestAnalytics:
-    def test_analytics_summary(self, auth_client):
+    def test_analytics_summary_has_rescued_fields(self, auth_client):
         r = auth_client.get(f"{BASE_URL}/api/analytics/summary")
         assert r.status_code == 200
         data = r.json()
-        assert isinstance(data, dict)
         assert "totals" in data
-        totals = data["totals"]
-        for k in ("total_clients", "active_clients", "pipeline_value", "revenue_month", "avg_lead_to_signed_days"):
-            assert k in totals, f"missing totals key: {k}"
+        t = data["totals"]
+        for k in ("total_clients", "active_clients", "pipeline_value", "revenue_month",
+                  "avg_lead_to_signed_days",
+                  "relationships_rescued", "rescue_window_days", "rescue_threshold_days"):
+            assert k in t, f"missing totals key: {k}"
+        assert isinstance(t["relationships_rescued"], int)
+        assert t["rescue_window_days"] == 7, f"expected rescue_window_days=7, got {t['rescue_window_days']}"
+        # rescue_threshold_days defaults from settings.follow_up_lead_days (default 3)
+        assert isinstance(t["rescue_threshold_days"], int)
         for k in ("by_stage", "by_source", "conversion_by_source", "conversion_by_language"):
             assert k in data, f"missing chart data: {k}"
 

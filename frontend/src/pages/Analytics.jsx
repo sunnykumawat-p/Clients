@@ -5,16 +5,29 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell,
   PieChart, Pie, Legend,
 } from "recharts";
+import { Sparkles } from "lucide-react";
 
 const STAGE_COLORS = {
-  Lead: "#4A6E82",
-  Pitched: "#94682F",
-  Negotiating: "#D48C45",
-  Signed: "#4A7256",
-  "In Progress": "#C05746",
-  Delivered: "#8A6046",
-  Past: "#9A9791",
+  Lead: "#B47530",       // warm amber (was blue-gray — replaced)
+  Pitched: "#94682F",    // sandy tan
+  Negotiating: "#D48C45", // warm gold
+  Signed: "#4A7256",     // olive green
+  "In Progress": "#C05746", // terracotta
+  Delivered: "#8A6046",   // muted brown
+  Past: "#9A9791",       // stone gray
 };
+
+// Warm-only rotation used for source donut & other categorical charts.
+// Explicitly no blue, purple, or teal.
+const WARM_ROTATION = [
+  "#C05746", // terracotta
+  "#4A7256", // olive
+  "#D48C45", // warm gold
+  "#B47530", // amber
+  "#8A6046", // brown
+  "#94682F", // sandy tan
+  "#9A9791", // stone gray
+];
 
 export default function Analytics() {
   const [data, setData] = useState(null);
@@ -47,6 +60,37 @@ export default function Analytics() {
         <Kpi label="Avg Lead → Signed" value={`${data.totals.avg_lead_to_signed_days} days`} testId="kpi-avg-lead" />
       </div>
 
+      {/* Relationships Rescued — the proof-of-value KPI */}
+      <div
+        className="cp-card p-5 md:p-6 mb-6 flex flex-col md:flex-row md:items-center gap-4 md:gap-6 border-[color:var(--cp-accent)]/25"
+        data-testid="kpi-rescued"
+        style={{
+          background:
+            "linear-gradient(135deg, var(--cp-accent-surface), rgba(74,114,86,0.06))",
+        }}
+      >
+        <div className="w-14 h-14 rounded-2xl bg-[color:var(--cp-accent)]/10 text-[color:var(--cp-accent)] flex items-center justify-center shrink-0">
+          <Sparkles size={22} strokeWidth={2} />
+        </div>
+        <div className="flex-1">
+          <div className="text-[11px] uppercase tracking-widest text-[color:var(--cp-text-3)]">
+            Relationships rescued · last {data.totals.rescue_window_days} days
+          </div>
+          <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+            <div className="text-4xl font-semibold tracking-tight text-[color:var(--cp-accent)]">
+              {data.totals.relationships_rescued}
+            </div>
+            <div className="text-[13.5px] text-[color:var(--cp-text-2)]">
+              {data.totals.relationships_rescued === 1 ? "client was" : "clients were"} silent for{" "}
+              {data.totals.rescue_threshold_days}+ days and got a message from you inside this window.
+            </div>
+          </div>
+          <div className="mt-1 text-[12px] text-[color:var(--cp-text-3)]">
+            This is proof the tool changed an outcome — a real save, not a display metric.
+          </div>
+        </div>
+      </div>
+
       <div className="grid lg:grid-cols-2 gap-5">
         <ChartCard title="Clients by stage" testId="chart-stages">
           <ResponsiveContainer width="100%" height={280}>
@@ -68,7 +112,7 @@ export default function Analytics() {
             <PieChart>
               <Pie data={sourceData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={3}>
                 {sourceData.map((_, i) => (
-                  <Cell key={i} fill={["#C05746", "#4A7256", "#D48C45", "#4A6E82", "#8A6046", "#94682F", "#9A9791"][i % 7]} />
+                  <Cell key={i} fill={WARM_ROTATION[i % WARM_ROTATION.length]} />
                 ))}
               </Pie>
               <Legend wrapperStyle={{ fontSize: 12 }} />

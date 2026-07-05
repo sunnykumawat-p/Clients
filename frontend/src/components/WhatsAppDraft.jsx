@@ -54,25 +54,24 @@ export default function WhatsAppDraft({ open, onClose, client, category = "follo
     );
   };
 
-  const send = async () => {
-    // Log the sent message on the timeline before opening WA
-    try {
-      await api.post(`/clients/${client.id}/interactions`, {
+  // Fire-and-forget logging so the anchor click stays a real user gesture
+  const logSent = () => {
+    // Not awaited — do not block navigation to wa.me
+    api
+      .post(`/clients/${client.id}/interactions`, {
         type: "message_sent",
         description: `WhatsApp sent (${lang.toUpperCase()}): ${message.slice(0, 120)}${message.length > 120 ? "…" : ""}`,
         meta: { category, language: lang },
-      });
-    } catch (e) {
-      // ignore
-    }
-    const url = buildWaLink(client.phone, message);
-    window.open(url, "_blank", "noopener,noreferrer");
-    onClose?.();
+      })
+      .catch(() => {});
+    // Close after a tick so the anchor navigates first
+    setTimeout(() => onClose?.(), 60);
   };
 
   if (!open || !client) return null;
 
   const langTemplates = templates.filter((t) => t.language === lang);
+  const waHref = buildWaLink(client.phone, message);
 
   return (
     <div
@@ -152,9 +151,16 @@ export default function WhatsAppDraft({ open, onClose, client, category = "follo
           <button onClick={onClose} className="cp-btn-secondary" data-testid="wa-modal-cancel">
             Cancel
           </button>
-          <button onClick={send} className="cp-btn-primary" data-testid="wa-modal-send">
+          <a
+            href={waHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={logSent}
+            className="cp-btn-primary"
+            data-testid="wa-modal-send"
+          >
             <Send size={16} /> Open in WhatsApp
-          </button>
+          </a>
         </div>
       </div>
     </div>

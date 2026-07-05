@@ -5,6 +5,7 @@ import { STAGES, SOURCES, formatMoney, formatDate, formatDateTime } from "@/lib/
 import StageBadge from "@/components/StageBadge";
 import WhatsAppDraft from "@/components/WhatsAppDraft";
 import { toast } from "sonner";
+import ConfirmDialog from "@/components/ConfirmDialog";
 import {
   ArrowLeft,
   MessageCircle,
@@ -28,6 +29,7 @@ export default function ClientProfile() {
   const [tab, setTab] = useState("timeline");
   const [wa, setWa] = useState(null); // {category, context}
   const [modal, setModal] = useState(null); // 'note' | 'payment' | 'task' | 'stage' | 'edit'
+  const [confirm, setConfirm] = useState(null);
 
   const load = async () => {
     const [c, tl, tk, pm] = await Promise.all([
@@ -55,11 +57,32 @@ export default function ClientProfile() {
   const pendingTasks = tasks.filter((t) => !t.completed);
   const doneTasks = tasks.filter((t) => t.completed);
 
-  const deleteClient = async () => {
-    if (!window.confirm(`Delete ${client.name}? This clears their entire history.`)) return;
-    await api.delete(`/clients/${id}`);
-    toast.success(`${client.name} removed`);
-    nav("/clients");
+  const deleteClient = () => {
+    setConfirm({
+      title: `Delete ${client.name}?`,
+      message: "This will permanently clear their entire timeline, tasks, payments, and notes. This cannot be undone.",
+      confirmLabel: "Delete client",
+      testId: "confirm-delete-client",
+      onConfirm: async () => {
+        await api.delete(`/clients/${id}`);
+        toast.success(`${client.name} removed`);
+        nav("/clients");
+      },
+    });
+  };
+
+  const askDeleteTask = (t) => {
+    setConfirm({
+      title: `Delete task?`,
+      message: `"${t.title}" will be removed. This won't affect the client's timeline history.`,
+      confirmLabel: "Delete task",
+      testId: "confirm-delete-task",
+      onConfirm: async () => {
+        await api.delete(`/tasks/${t.id}`);
+        toast.success("Task removed");
+        load();
+      },
+    });
   };
 
   return (
@@ -195,6 +218,14 @@ export default function ClientProfile() {
                   >
                     <CheckCircle2 size={14} /> Complete
                   </button>
+                  <button
+                    onClick={() => askDeleteTask(t)}
+                    className="cp-btn-ghost text-[color:var(--cp-accent)]"
+                    aria-label="Delete task"
+                    data-testid={`btn-delete-task-${t.id}`}
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               ))
             )}
@@ -314,6 +345,8 @@ export default function ClientProfile() {
           }}
         />
       )}
+
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

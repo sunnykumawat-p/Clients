@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, X, MessageSquareText } from "lucide-react";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 const CATEGORIES = [
   { id: "follow_up", label: "Follow-Up" },
@@ -17,6 +18,7 @@ export default function Templates() {
   const [templates, setTemplates] = useState([]);
   const [lang, setLang] = useState("en");
   const [editing, setEditing] = useState(null); // template object or 'new'
+  const [confirm, setConfirm] = useState(null);
 
   const load = () => api.get("/templates").then((r) => setTemplates(r.data));
   useEffect(() => { load(); }, []);
@@ -27,11 +29,18 @@ export default function Templates() {
     items: langTemplates.filter((t) => t.category === c.id),
   }));
 
-  const remove = async (t) => {
-    if (!window.confirm(`Delete template "${t.name}"?`)) return;
-    await api.delete(`/templates/${t.id}`);
-    toast.success("Template deleted");
-    load();
+  const askRemove = (t) => {
+    setConfirm({
+      title: `Delete "${t.name}"?`,
+      message: "This template will be permanently removed from your library. You can re-create it any time.",
+      confirmLabel: "Delete template",
+      testId: "confirm-delete-template",
+      onConfirm: async () => {
+        await api.delete(`/templates/${t.id}`);
+        toast.success("Template deleted");
+        load();
+      },
+    });
   };
 
   return (
@@ -87,7 +96,7 @@ export default function Templates() {
                     <button className="cp-btn-ghost" onClick={() => setEditing(t)} data-testid={`btn-edit-template-${t.id}`}>
                       <Pencil size={14} />
                     </button>
-                    <button className="cp-btn-ghost text-[color:var(--cp-accent)]" onClick={() => remove(t)} data-testid={`btn-delete-template-${t.id}`}>
+                    <button className="cp-btn-ghost text-[color:var(--cp-accent)]" onClick={() => askRemove(t)} data-testid={`btn-delete-template-${t.id}`}>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -107,6 +116,7 @@ export default function Templates() {
           }}
         />
       )}
+      <ConfirmDialog state={confirm} onClose={() => setConfirm(null)} />
     </div>
   );
 }

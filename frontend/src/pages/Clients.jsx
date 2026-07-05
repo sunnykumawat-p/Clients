@@ -23,7 +23,6 @@ export default function Clients() {
     } else if (searchParams.get("stage")) {
       setSearchParams({}, { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, stage]);
 
   return (
