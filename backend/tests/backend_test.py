@@ -353,7 +353,6 @@ class TestDashboardAttention:
         pr = auth_client.post(f"{BASE_URL}/api/clients/{tuku['id']}/payments",
                               json={"amount": 100, "method": "UPI"})
         assert pr.status_code in (200, 201), pr.text
-        pay_id = pr.json().get("id")
 
         att = auth_client.get(f"{BASE_URL}/api/dashboard/attention").json()
         names_overdue = [c["name"] for c in att["overdue_payments"]]

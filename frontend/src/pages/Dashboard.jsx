@@ -513,7 +513,7 @@ const STAGE_BAR_COLOR = {
   Signed: "#4A7256",
   "In Progress": "#C05746",
   Delivered: "#8A6046",
-  Past: "#B5B0A6",
+  Past: "#9A9791",       // stone gray (matches Analytics palette)
 };
 
 const ActionButtons = ({ item, onWa }) => (

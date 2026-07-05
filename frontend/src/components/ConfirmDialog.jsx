@@ -24,15 +24,9 @@ export default function ConfirmDialog({ state, onClose }) {
     message = "This action cannot be undone.",
     confirmLabel = "Delete",
     cancelLabel = "Cancel",
-    tone = "danger",
     onConfirm,
     testId = "confirm-dialog",
   } = state;
-
-  const confirmClass =
-    tone === "danger"
-      ? "cp-btn-primary"
-      : "cp-btn-primary";
 
   const handleConfirm = async () => {
     setBusy(true);
@@ -85,7 +79,7 @@ export default function ConfirmDialog({ state, onClose }) {
           </button>
           <button
             onClick={handleConfirm}
-            className={confirmClass}
+            className="cp-btn-primary"
             data-testid={`${testId}-confirm`}
             disabled={busy}
           >
