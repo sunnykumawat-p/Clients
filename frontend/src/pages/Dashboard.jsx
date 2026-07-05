@@ -123,6 +123,7 @@ export default function Dashboard() {
           value={s.total_active}
           sub={`${s.total_clients} total in workspace`}
           icon={Users}
+          to="/clients?filter=active"
           testId="stat-active"
         />
         <StatCard
@@ -130,6 +131,7 @@ export default function Dashboard() {
           value={formatMoney(s.pipeline_value)}
           sub={`Avg deal ${formatMoney(s.avg_deal_size)}`}
           icon={TrendingUp}
+          to="/clients?filter=active"
           testId="stat-pipeline"
         />
         <StatCard
@@ -137,14 +139,18 @@ export default function Dashboard() {
           value={s.total_leads}
           sub={`${s.new_leads_week} new this week`}
           icon={Sparkle}
+          to="/clients?stage=Lead"
           testId="stat-leads"
         />
         <StatCard
           label="Attention items"
           value={s.attention_count}
-          sub={s.attention_count === 0 ? "You're all caught up" : "Tap a card below"}
+          sub={s.attention_count === 0 ? "You're all caught up" : "Tap to see below"}
           icon={AlertCircle}
           highlight={s.attention_count > 0}
+          onClick={() => {
+            document.getElementById("attention-anchor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
           testId="stat-attention"
         />
       </div>
@@ -158,6 +164,7 @@ export default function Dashboard() {
           delta={monthDelta(s.revenue_this_month, s.revenue_last_month, formatMoney)}
           icon={Coins}
           tint="var(--cp-success)"
+          to="/analytics"
           testId="stat-rev-month"
         />
         <StatCard
@@ -166,6 +173,7 @@ export default function Dashboard() {
           sub={s.total_outstanding > 0 ? "Ages off balance, not silence" : "Nothing pending"}
           icon={Wallet}
           tint={s.total_outstanding > 0 ? "var(--cp-accent)" : undefined}
+          to="/clients?filter=dues"
           testId="stat-outstanding"
         />
         <StatCard
@@ -175,6 +183,7 @@ export default function Dashboard() {
           delta={monthDelta(s.signed_this_month, s.signed_last_month, (v) => `${v}`)}
           icon={CheckCircle2}
           tint="var(--cp-success)"
+          to="/clients?stage=Signed"
           testId="stat-won"
         />
         <StatCard
@@ -183,6 +192,7 @@ export default function Dashboard() {
           sub={`${s.contacted_today} in the last 24h`}
           icon={Activity}
           sparkline={s.contacts_daily}
+          to="/clients?filter=contacted"
           testId="stat-contacted"
         />
       </div>
@@ -244,6 +254,7 @@ export default function Dashboard() {
         </div>
       )}
 
+      <div id="attention-anchor" className="scroll-mt-8" />
       <div className="grid lg:grid-cols-2 gap-5">
         {data.overdue_followups.length > 0 && (
           <CardSection
@@ -394,52 +405,73 @@ export default function Dashboard() {
   );
 }
 
-const StatCard = ({ label, value, sub, icon: Icon, highlight, tint, delta, sparkline, testId }) => (
-  <div
-    className={`cp-card p-4 md:p-5 relative overflow-hidden ${highlight ? "ring-1 ring-[color:var(--cp-accent)]/30" : ""}`}
-    data-testid={testId}
-  >
-    <div className="flex items-start justify-between gap-2">
-      <div className="text-[11px] uppercase tracking-widest text-[color:var(--cp-text-3)]">{label}</div>
-      {Icon && (
+const StatCard = ({ label, value, sub, icon: Icon, highlight, tint, delta, sparkline, to, onClick, testId }) => {
+  const inner = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[11px] uppercase tracking-widest text-[color:var(--cp-text-3)]">{label}</div>
+        {Icon && (
+          <div
+            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              background: tint ? `${tint}15` : "var(--cp-subtle)",
+              color: tint || "var(--cp-text-2)",
+            }}
+          >
+            <Icon size={14} strokeWidth={2.1} />
+          </div>
+        )}
+      </div>
+      <div
+        className={`mt-2 text-2xl md:text-3xl font-semibold tracking-tight ${highlight ? "text-[color:var(--cp-accent)]" : ""}`}
+        style={!highlight && tint ? { color: tint } : {}}
+      >
+        {value}
+      </div>
+      {delta && (
         <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-          style={{
-            background: tint ? `${tint}15` : "var(--cp-subtle)",
-            color: tint || "var(--cp-text-2)",
-          }}
+          className={`mt-1 inline-flex items-center gap-1 text-[11.5px] font-medium ${delta.up ? "text-[color:var(--cp-success)]" : "text-[color:var(--cp-accent)]"}`}
+          data-testid={`${testId}-delta`}
         >
-          <Icon size={14} strokeWidth={2.1} />
+          {delta.label}
         </div>
       )}
+      {sub && !delta && (
+        <div className="mt-1 text-[12px] text-[color:var(--cp-text-3)]">{sub}</div>
+      )}
+      {delta && sub && (
+        <div className="mt-0.5 text-[11px] text-[color:var(--cp-text-3)]">{sub}</div>
+      )}
+      {sparkline && sparkline.length > 0 && (
+        <div className="mt-2" data-testid={`${testId}-sparkline`}>
+          <Sparkline values={sparkline} />
+        </div>
+      )}
+    </>
+  );
+
+  const cls = `cp-card p-4 md:p-5 relative overflow-hidden block text-left w-full transition-all duration-150 hover:shadow-md hover:-translate-y-[1px] hover:border-[color:var(--cp-accent)]/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--cp-accent)]/40 ${highlight ? "ring-1 ring-[color:var(--cp-accent)]/30" : ""}`;
+
+  if (to) {
+    return (
+      <Link to={to} className={cls} data-testid={testId} data-clickable="1">
+        {inner}
+      </Link>
+    );
+  }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cls} data-testid={testId} data-clickable="1">
+        {inner}
+      </button>
+    );
+  }
+  return (
+    <div className={`cp-card p-4 md:p-5 relative overflow-hidden ${highlight ? "ring-1 ring-[color:var(--cp-accent)]/30" : ""}`} data-testid={testId}>
+      {inner}
     </div>
-    <div
-      className={`mt-2 text-2xl md:text-3xl font-semibold tracking-tight ${highlight ? "text-[color:var(--cp-accent)]" : ""}`}
-      style={!highlight && tint ? { color: tint } : {}}
-    >
-      {value}
-    </div>
-    {delta && (
-      <div
-        className={`mt-1 inline-flex items-center gap-1 text-[11.5px] font-medium ${delta.up ? "text-[color:var(--cp-success)]" : "text-[color:var(--cp-accent)]"}`}
-        data-testid={`${testId}-delta`}
-      >
-        {delta.label}
-      </div>
-    )}
-    {sub && !delta && (
-      <div className="mt-1 text-[12px] text-[color:var(--cp-text-3)]">{sub}</div>
-    )}
-    {delta && sub && (
-      <div className="mt-0.5 text-[11px] text-[color:var(--cp-text-3)]">{sub}</div>
-    )}
-    {sparkline && sparkline.length > 0 && (
-      <div className="mt-2" data-testid={`${testId}-sparkline`}>
-        <Sparkline values={sparkline} />
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 const Sparkline = ({ values }) => {
   const max = Math.max(1, ...values);
@@ -466,42 +498,116 @@ const Sparkline = ({ values }) => {
 };
 
 const PipelineBars = ({ data }) => {
-  const total = Math.max(1, data.reduce((a, b) => a + b.count, 0));
-  const maxCount = Math.max(1, ...data.map((d) => d.count));
+  const total = data.reduce((a, b) => a + b.count, 0);
+  const totalValue = data.reduce((a, b) => a + b.value, 0);
+
+  // Build donut arcs proportional to `count` (fallback to equal slice if all zeros)
+  const stages = data.map((d, i) => ({
+    ...d,
+    color: STAGE_BAR_COLOR[d.stage] || "#C05746",
+    idx: i,
+  }));
+
+  const SIZE = 220;
+  const STROKE = 26;
+  const R = (SIZE - STROKE) / 2;
+  const CIRC = 2 * Math.PI * R;
+
+  let offset = 0;
+  const arcs = stages.map((s) => {
+    const share = total > 0 ? s.count / total : 0;
+    const len = share * CIRC;
+    const arc = {
+      ...s,
+      dashArray: `${len} ${CIRC - len}`,
+      dashOffset: -offset,
+      share,
+    };
+    offset += len;
+    return arc;
+  });
+
   return (
-    <div className="space-y-2.5" data-testid="pipeline-bars">
-      {data.map((row) => {
-        const pct = Math.round((row.count / total) * 100);
-        const barPct = Math.max(4, (row.count / maxCount) * 100);
-        return (
-          <Link
-            key={row.stage}
-            to={`/clients?stage=${encodeURIComponent(row.stage)}`}
-            className="flex items-center gap-3 group"
-            data-testid={`pipeline-row-${row.stage}`}
-          >
-            <div className="w-28 md:w-32 shrink-0">
-              <span className={`cp-stage-pill ${stageClass(row.stage)}`}>{row.stage}</span>
-            </div>
-            <div className="flex-1 relative h-8 bg-[color:var(--cp-subtle)] rounded-lg overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 rounded-lg transition-all group-hover:brightness-95"
-                style={{
-                  width: `${barPct}%`,
-                  background: STAGE_BAR_COLOR[row.stage] || "var(--cp-accent)",
-                  opacity: row.count === 0 ? 0.15 : 1,
-                }}
+    <div className="grid md:grid-cols-[220px_1fr] gap-6 md:gap-8 items-center" data-testid="pipeline-bars">
+      {/* Circular ring */}
+      <div className="relative mx-auto md:mx-0" style={{ width: SIZE, height: SIZE }}>
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="-rotate-90">
+          {/* Base track */}
+          <circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            fill="none"
+            stroke="var(--cp-subtle)"
+            strokeWidth={STROKE}
+          />
+          {/* Stage arcs */}
+          {arcs.map((a) =>
+            a.count > 0 ? (
+              <circle
+                key={a.stage}
+                cx={SIZE / 2}
+                cy={SIZE / 2}
+                r={R}
+                fill="none"
+                stroke={a.color}
+                strokeWidth={STROKE}
+                strokeDasharray={a.dashArray}
+                strokeDashoffset={a.dashOffset}
+                strokeLinecap="butt"
+                className="transition-all duration-500"
+              >
+                <title>{`${a.stage} · ${a.count}`}</title>
+              </circle>
+            ) : null
+          )}
+        </svg>
+        {/* Center label */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
+          <div className="text-[10px] uppercase tracking-widest text-[color:var(--cp-text-3)]">Pipeline</div>
+          <div className="mt-0.5 text-[22px] font-semibold tracking-tight leading-none">
+            {formatMoney(totalValue)}
+          </div>
+          <div className="mt-1 text-[11px] text-[color:var(--cp-text-2)]">
+            {total} {total === 1 ? "client" : "clients"}
+          </div>
+        </div>
+      </div>
+
+      {/* Legend list — each entry links to a stage-filtered view */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+        {arcs.map((a) => {
+          const pct = total > 0 ? Math.round((a.count / total) * 100) : 0;
+          return (
+            <Link
+              key={a.stage}
+              to={`/clients?stage=${encodeURIComponent(a.stage)}`}
+              className="group flex items-center gap-3 py-2 px-2 -mx-2 rounded-lg hover:bg-[color:var(--cp-subtle)] transition-colors"
+              data-testid={`pipeline-row-${a.stage}`}
+            >
+              <span
+                className="w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ background: a.color, opacity: a.count === 0 ? 0.3 : 1 }}
               />
-              <div className="absolute inset-0 flex items-center px-3 text-[12px] font-medium">
-                <span className="text-white mix-blend-difference">{row.count} {row.count === 1 ? "client" : "clients"}</span>
-                <span className="ml-auto text-[color:var(--cp-text-2)] text-[11px]">
-                  {formatMoney(row.value)} · {pct}%
-                </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-[13px] font-medium text-[color:var(--cp-text)] truncate">{a.stage}</div>
+                  <div className="text-[12px] text-[color:var(--cp-text-2)] tabular-nums">
+                    {a.count} · {pct}%
+                  </div>
+                </div>
+                <div className="text-[11px] text-[color:var(--cp-text-3)] tabular-nums">
+                  {formatMoney(a.value)}
+                </div>
               </div>
-            </div>
-          </Link>
-        );
-      })}
+              <ArrowRight
+                size={13}
+                className="text-[color:var(--cp-text-3)] opacity-0 -translate-x-1 transition-all group-hover:opacity-100 group-hover:translate-x-0 shrink-0"
+              />
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 };

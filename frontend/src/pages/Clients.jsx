@@ -6,42 +6,80 @@ import StageBadge from "@/components/StageBadge";
 import { Plus, Search, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
+const OPEN_STAGES = new Set(["Lead", "Pitched", "Negotiating", "Signed", "In Progress"]);
+
+const FILTER_META = {
+  active: { title: "Active clients", subtitle: "Everyone currently in your pipeline (Lead → In Progress)." },
+  dues: { title: "Clients with outstanding dues", subtitle: "Money still owed — chase gently." },
+  contacted: { title: "Contacted in the last 7 days", subtitle: "Recent, warm relationships." },
+};
+
 export default function Clients() {
-  const [clients, setClients] = useState([]);
+  const [rawClients, setRawClients] = useState([]);
   const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState("");
   const [stage, setStage] = useState(searchParams.get("stage") || "");
+  const [filter, setFilter] = useState(searchParams.get("filter") || "");
   const [showAdd, setShowAdd] = useState(false);
 
   const load = () =>
-    api.get("/clients", { params: { q: q || undefined, stage: stage || undefined } }).then((r) => setClients(r.data));
+    api.get("/clients", { params: { q: q || undefined, stage: stage || undefined } }).then((r) => setRawClients(r.data));
 
   useEffect(() => {
     load();
-    if (stage) {
-      setSearchParams({ stage }, { replace: true });
-    } else if (searchParams.get("stage")) {
-      setSearchParams({}, { replace: true });
-    }
-  }, [q, stage]);
+    const next = {};
+    if (stage) next.stage = stage;
+    if (filter) next.filter = filter;
+    setSearchParams(next, { replace: true });
+  }, [q, stage, filter]);
+
+  // Client-side filter + sort layer for "smart" filters coming from dashboard clicks
+  const clients = rawClients
+    .filter((c) => {
+      if (filter === "active") return OPEN_STAGES.has(c.stage);
+      if (filter === "dues") return (c.money?.outstanding || 0) > 0;
+      if (filter === "contacted") return (c.days_since_contact ?? 999) <= 7;
+      return true;
+    })
+    .sort((a, b) => {
+      if (filter === "dues") return (b.money?.outstanding || 0) - (a.money?.outstanding || 0);
+      if (filter === "contacted") return (a.days_since_contact ?? 0) - (b.days_since_contact ?? 0);
+      return 0; // preserve backend order
+    });
+
+  const filterMeta = FILTER_META[filter];
 
   return (
     <div className="px-4 md:px-8 py-6 md:py-10 max-w-7xl mx-auto">
       <div className="flex items-end justify-between flex-wrap gap-4 mb-6">
         <div>
           <div className="text-xs uppercase tracking-widest text-[color:var(--cp-text-3)]">Clients</div>
-          <h1 className="mt-1 text-3xl md:text-4xl font-semibold tracking-tight">Everyone you know</h1>
+          <h1 className="mt-1 text-3xl md:text-4xl font-semibold tracking-tight">
+            {filterMeta?.title || (stage ? `${stage} clients` : "Everyone you know")}
+          </h1>
           <p className="mt-1.5 text-[color:var(--cp-text-2)] text-[15px]">
-            {clients.length} clients · every relationship, in one place.
+            {filterMeta?.subtitle || `${clients.length} clients · every relationship, in one place.`}
+            {filterMeta && ` (${clients.length} shown)`}
           </p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="cp-btn-primary"
-          data-testid="btn-add-client"
-        >
-          <Plus size={16} /> Add client
-        </button>
+        <div className="flex items-center gap-2">
+          {(filter || stage) && (
+            <button
+              onClick={() => { setFilter(""); setStage(""); }}
+              className="cp-btn-secondary text-[13px]"
+              data-testid="btn-clear-filter"
+            >
+              Clear filter
+            </button>
+          )}
+          <button
+            onClick={() => setShowAdd(true)}
+            className="cp-btn-primary"
+            data-testid="btn-add-client"
+          >
+            <Plus size={16} /> Add client
+          </button>
+        </div>
       </div>
 
       <div className="cp-card p-3 md:p-4 mb-5 flex flex-col md:flex-row gap-3">
